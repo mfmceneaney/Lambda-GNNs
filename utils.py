@@ -1,6 +1,6 @@
 ###############################
 # Matthew McEneaney
-# 6/24/21
+# 7/8/21
 ###############################
 
 from __future__ import absolute_import, division, print_function
@@ -25,24 +25,17 @@ from ignite.metrics import Accuracy, Loss
 from ignite.contrib.metrics import ROC_AUC, RocCurve
 from ignite.contrib.handlers.tensorboard_logger import *
 from ignite.handlers import global_step_from_engine
-from ignite.contrib.handlers.base_logger import (
-    BaseLogger,
-    BaseOptimizerParamsHandler,
-    BaseOutputHandler,
-    BaseWeightsHistHandler,
-    BaseWeightsScalarHandler,
-)
 
 # Utility Imports
-import datetime, os, psutil, threading
+import datetime, os
 
-def load_graph_dataset(dataset="ldata_train_6_23",batch_size=256,drop_last=False,shuffle=True,num_workers=1,pin_memory=False):
+def load_graph_dataset(dataset="ldata_train_6_23",batch_size=256,drop_last=False,shuffle=True,num_workers=1,pin_memory=True, verbose=True):
     # Load training data
-    train_dataset = LambdasDataset("ldata_train_6_23") # Make sure this is copied into ~/.dgl folder
+    train_dataset = LambdasDataset(dataset+"_train") # Make sure this is copied into ~/.dgl folder
     train_dataset.load()
     num_labels = train_dataset.num_labels
     node_feature_dim = train_dataset.graphs[0].ndata["data"].shape[0]
-    print("*** NODE_FEATURE_DIM *** = ",node_feature_dim)
+    if verbose: print("*** NODE_FEATURE_DIM *** = ",node_feature_dim)#DEBUGGING
 
     # Create training dataloader
     train_loader = GraphDataLoader(
@@ -50,10 +43,11 @@ def load_graph_dataset(dataset="ldata_train_6_23",batch_size=256,drop_last=False
         batch_size=batch_size,
         drop_last=drop_last,
         shuffle=shuffle,
-        pin_memory=pin_memory)
+        pin_memory=pin_memory,
+        num_workers=num_workers)
 
     # Load validation data
-    val_dataset = LambdasDataset("ldata_test_6_23") # Make sure this is copied into ~/.dgl folder
+    val_dataset = LambdasDataset(dataset+"_test") # Make sure this is copied into ~/.dgl folder
     val_dataset.load()
 
     # Create testing dataloader
@@ -62,18 +56,22 @@ def load_graph_dataset(dataset="ldata_train_6_23",batch_size=256,drop_last=False
         batch_size=batch_size,
         drop_last=drop_last,
         shuffle=shuffle,
-        pin_memory=pin_memory)
+        pin_memory=pin_memory,
+        num_workers=num_workers)
 
     return train_loader, val_loader, num_labels, node_feature_dim
 
 def train(args, model, device, train_loader, val_loader, optimizer, scheduler, criterion, max_epochs,
-            log_interval=10,log_dir="./tb_logs/tmp/",save_path="./torch_models",verbose=True):
+            dataset="ldata_6_23_big", log_interval=10,log_dir="./logs/",save_path="./torch_models",verbose=True):
 
     # Make sure log/save directories exist
     try:
-        os.mkdir(log_dir)
+        os.mkdir(os.path.join(log_dir,"tb_logs/tmp"))
     except Exception:
-        if verbose: print("Could not create directory:",log_dir)
+        if verbose: print("Could not create directory:",os.path.join(log_dir,"tb_logs/tmp"))
+
+    # Logs for matplotlib plots
+    logs={'train':[], 'val':[]}
 
     # Create trainer
     def train_step(engine, batch):
@@ -83,26 +81,30 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
         y      = y.to(device)
         y_pred = model(x,x.ndata["data"].float())
         loss   = criterion(y_pred, y)
-        acc    = (y_pred.argmax(1) == y).type(torch.float).sum().item() / len(y_pred)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        return {'loss': loss.item(),
-                'accuracy': acc,
+        test_Y = y.clone().detach().float().view(-1, 1) 
+        probs_Y = torch.softmax(y_pred, 1)
+        argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
+        acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
+        return {
                 'y_pred': y_pred,
-                'y': y}
+                'y': y,
+                'y_pred_preprocessed': argmax_Y,
+                'loss': loss.detach().item(),
+                'accuracy': acc
+                }
 
     trainer = Engine(train_step)
 
     # Add metrics
-    accuracy  = Accuracy(output_transform=lambda x: [x['y_pred'].argmax(1), x['y']])
+    accuracy  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     accuracy.attach(trainer, 'accuracy')
     loss      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
     loss.attach(trainer, 'loss')
-    roc_auc   = ROC_AUC(output_transform=lambda x: [x['y_pred'].argmax(1), x['y']])
+    roc_auc   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     roc_auc.attach(trainer,'roc_auc')
-    roc_curve = RocCurve(output_transform=lambda x: [x['y_pred'].argmax(1), x['y']])
-    roc_curve.attach(trainer,'roc_curve')
 
     # Create validator
     def val_step(engine, batch):
@@ -110,81 +112,86 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
         x, y   = batch
         x      = x.to(device)
         y      = y.to(device)
-        y_pred = model(x,x.ndata["data"].float())
+        y_pred = model(x,x.ndata["data"].float())#TODO: Modify this so it works with PFN/EFN as well?
         loss   = criterion(y_pred, y)
-        acc    = (y_pred.argmax(1) == y).type(torch.float).sum().item() / len(y_pred)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        test_Y = y.clone().detach().float().view(-1, 1) 
+        probs_Y = torch.softmax(y_pred, 1)
+        argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
+        acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
         model.train()
-        return {'loss': loss.item(),
-                'accuracy': acc,
+        return {
                 'y_pred': y_pred,
-                'y': y}
+                'y': y,
+                'y_pred_preprocessed': argmax_Y,
+                'loss': loss.detach().item(),
+                'accuracy': acc
+                }
 
     evaluator = Engine(val_step)
 
     # Add metrics
-    accuracy_  = Accuracy(output_transform=lambda x: [x['y_pred'].argmax(1), x['y']])
+    accuracy_  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     accuracy_.attach(evaluator, 'accuracy')
     loss_      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
     loss_.attach(evaluator, 'loss')
-    roc_auc_   = ROC_AUC(output_transform=lambda x: [x['y_pred'].argmax(1), x['y']])
+    roc_auc_   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     roc_auc_.attach(evaluator,'roc_auc')
-    roc_curve_ = RocCurve(output_transform=lambda x: [x['y_pred'].argmax(1), x['y']])
-    roc_curve_.attach(evaluator,'roc_curve')
 
-    @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
-    def log_training_loss(trainer):
-        if verbose: print(f"\rEpoch[{trainer.state.epoch} : " +
-            f"{(trainer.state.iteration-(trainer.state.epoch-1)*trainer.state.epoch_length)/trainer.state.epoch_length*100:.1f}%] " +
-            f"Loss: {trainer.state.output['loss']:.3f} Accuracy: {trainer.state.output['accuracy']:.3f}",end='')
+@trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
+def log_training_loss(trainer):
+    if verbose: print(f"\rEpoch[{trainer.state.epoch} : " +
+          f"{(trainer.state.iteration-(trainer.state.epoch-1)*trainer.state.epoch_length)/trainer.state.epoch_length*100:.1f}%] " +
+          f"Loss: {trainer.state.output['loss']:.3f} Accuracy: {trainer.state.output['accuracy']:.3f}",end='')
 
-    @trainer.on(Events.EPOCH_COMPLETED)
-    def log_training_results(trainer):
-        metrics = evaluator.run(train_loader).metrics
-        logs['train'].append({metric:metrics[metric] for metric in metrics.keys()})
-        if verbose: print(f"Training Results - Epoch: {trainer.state.epoch}  Avg accuracy: {metrics['accuracy']:.4f} Avg loss: {metrics['loss']:.4f}")
+@trainer.on(Events.EPOCH_COMPLETED)
+def stepLR(trainer):
+    prev_lr = scheduler.get_last_lr()
+    scheduler.step()
+    new_lr = scheduler.get_last_lr()
+    if prev_lr != new_lr:
+        if verbose: print(f"\nLR: {prev_lr[0]:.4f} -> {new_lr[0]:.4f}",end="")
 
-    @trainer.on(Events.EPOCH_COMPLETED)
-    def log_validation_results(trainer):
-        metrics = evaluator.run(val_loader).metrics
-        logs['val'].append({metric:metrics[metric] for metric in metrics.keys()})
-        if verbose: print(f"Validation Results - Epoch: {trainer.state.epoch}  Avg accuracy: {metrics['accuracy']:.4f} Avg loss: {metrics['loss']:.4f}")
+@trainer.on(Events.EPOCH_COMPLETED)
+def log_training_results(trainer):
+    metrics = evaluator.run(train_loader).metrics
+    logs['train'].append({metric:metrics[metric] for metric in metrics.keys()})
+    if verbose: print(f"\nTraining Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
+
+@trainer.on(Events.EPOCH_COMPLETED)
+def log_validation_results(trainer):
+    metrics = evaluator.run(val_loader).metrics
+    logs['val'].append({metric:metrics[metric] for metric in metrics.keys()})
+    if verbose: print(f"Validation Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
 
     # Create a TensorBoard logger
     tb_logger = TensorboardLogger(log_dir=log_dir)
-
-    # Attach the logger to the trainer to log model's weights as a histogram after each epoch
-    tb_logger.attach(trainer,event_name=Events.EPOCH_COMPLETED,log_handler=WeightsHistHandler(model))
 
     # Attach the logger to the trainer to log training loss at each iteration
     tb_logger.attach_output_handler(
         trainer,
         event_name=Events.ITERATION_COMPLETED,
-        tag="training",
-        output_transform=lambda loss: {"loss": loss["loss"]}
+        tag="training_by_iteration",
+        output_transform=lambda x: x["loss"]
     )
         
-    # Attach the logger to the evaluator on the training dataset and log NLL, Accuracy metrics after each epoch
-    # We setup `global_step_transform=global_step_from_engine(trainer)` to take the epoch
-    # of the `trainer` instead of `train_evaluator`.
+    # Attach the logger to the evaluator on the training dataset and log Loss, Accuracy metrics after each epoch
     tb_logger.attach_output_handler(
         trainer,
         event_name=Events.EPOCH_COMPLETED,
         tag="training",
-        metric_names=["loss","accuracy","roc_auc","roc_curve"],
+        metric_names=["loss","accuracy","roc_auc"],
         global_step_transform=global_step_from_engine(trainer),
     )
 
-    # Attach the logger to the evaluator on the validation dataset and log NLL, Accuracy metrics after
-    # each epoch. We setup `global_step_transform=global_step_from_engine(trainer)` to take the epoch of the
-    # `trainer` instead of `evaluator`.
+    # Attach the logger to the evaluator on the validation dataset and log Loss, Accuracy metrics after
     tb_logger.attach_output_handler(
         evaluator,
         event_name=Events.EPOCH_COMPLETED,
         tag="validation",
-        metric_names=["loss","accuracy","roc_auc","roc_curve"],
+        metric_names=["loss","accuracy","roc_auc"],
         global_step_transform=global_step_from_engine(evaluator)
     )
 
@@ -196,40 +203,91 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
         param_name='lr'  # optional
     )
 
-    # Attach the logger to the trainer to log model's weights norm after each iteration
-    tb_logger.attach(
-        trainer,
-        event_name=Events.ITERATION_COMPLETED,
-        log_handler=WeightsScalarHandler(model)
-    )
-
-    # Attach the logger to the trainer to log model's weights as a histogram after each epoch
-    tb_logger.attach(
-        trainer,
-        event_name=Events.EPOCH_COMPLETED,
-        log_handler=WeightsHistHandler(model)
-    )
-
-    # Attach the logger to the trainer to log model's gradients norm after each iteration
-    tb_logger.attach(
-        trainer,
-        event_name=Events.ITERATION_COMPLETED,
-        log_handler=GradsScalarHandler(model)
-    )
-
-    # Attach the logger to the trainer to log model's gradients as a histogram after each epoch
-    tb_logger.attach(
-        trainer,
-        event_name=Events.EPOCH_COMPLETED,
-        log_handler=GradsHistHandler(model)
-    )
-
     # Run training loop
     trainer.run(train_loader, max_epochs=max_epochs)
     tb_logger.close() #IMPORTANT!
     if save_path!="":
         torch.save(model.state_dict(), save_path)
 
+    # Create training/validation loss plot
+    f = plt.figure()
+    plt.title('Loss per epoch')
+    plt.plot(epoch_losses,label="training")
+    plt.plot(val_losses,label="validation")
+    plt.legend(loc='upper right', frameon=False)
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend()
+    if verbose: plt.show()
+    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+
+    # Create training/validation accuracy plot
+    f = plt.figure()
+    plt.title('Accuracy per epoch')
+    plt.plot(epoch_accs,label="training")
+    plt.plot(val_accs,label="validation")
+    plt.legend(loc='lower right', frameon=False)
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    if verbose: plt.show()
+    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+
+
+def evaluate(model, device, test_dataloader,dataset="ldata_6_23_big",verbose=True):
+
+    model.eval()
+    prediction = model(test_bg,test_bg.ndata["data"].float())
+    test_bg    = dgl.batch(test_dataset.graphs)
+    test_Y     = test_dataset.labels.clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
+    probs_Y    = torch.softmax(prediction, 1)
+    argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
+    if verbose: print('Accuracy of predictions on the test set: {:4f}%'.format(
+        (test_Y == argmax_Y.float()).sum().item() / len(test_Y) * 100))
+
+    # Get ROC curve
+    pfn_fp, pfn_tp, threshs = roc_curve(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
+
+    # Get area under the ROC curve
+    auc = roc_auc_score(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
+
+    # Create matplotlib plots for ROC curve and testing decisions
+    f = plt.figure()
+
+    # Get some nicer plot settings 
+    plt.rcParams['figure.figsize'] = (4,4)
+    plt.rcParams['font.family'] = 'serif'
+    plt.rcParams['figure.autolayout'] = True
+
+    # Plot the ROC curve
+    plt.plot(pfn_tp, 1-pfn_fp, '-', color='black', label=model.name)
+
+    # axes labels
+    plt.xlabel('Lambda Event Efficiency')
+    plt.ylabel('Background Rejection')
+
+    # axes limits
+    plt.xlim(0, 1)
+    plt.ylim(0, 1)
+
+    # make legend and show plot
+    plt.legend([model.name+f": AUC={auc:.4f}"],loc='lower left', frameon=False)
+    if verbose: plt.show()
+    f.savefig(model.name+"_AUC_"+datetime.datetime.now().strftime("%F")+dataset_name+"_nEps"+str(num_epochs)+".png")
+
+    ##########################################################
+    # Plot testing decisions
+    bins = 100
+    low = min(np.min(p) for p in probs_Y[:,1].detach().numpy())
+    high = max(np.max(p) for p in probs_Y[:,0].detach().numpy())
+    low_high = (low,high)
+    f = plt.figure()
+    plt.clf()
+    plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
+    plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
+    plt.xlabel('output')
+    plt.ylabel('counts')
+    if verbose: plt.show()
+    f.savefig(model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset_name+"_nEps"+str(num_epochs)+".png")
 
 # Define dataset class
 

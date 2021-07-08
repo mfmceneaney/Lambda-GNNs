@@ -1,0 +1,8 @@
+argparse
+psutil
+dgl
+torch
+torchvision # (Just for tensorboard logging)
+pytorch-ignite
+matplotlib
+scikitlearn

@@ -18,50 +18,50 @@ import torch.optim as optim
 import argparse, math, datetime, os, psutil, threading
 
 # Custom Imports
-from utils import LambdasDataset, train, load_graph_dataset
+from utils import LambdasDataset, load_graph_dataset, train, evaluate
 from models import GIN
 
-# Set key for monitor thread to check if main thread is done
-shared_resource = True
-lock = threading.Lock()
+# # Set key for monitor thread to check if main thread is done
+# shared_resource = True
+# lock = threading.Lock()
 
-def monitor(log_interval,filename="CPU_logs.txt"):
-    with open(filename, 'w') as f:
-        while shared_resource:
-            f.write("CPU: %f RAM: %f" % (psutil.cpu_percent(log_interval), psutil.virtual_memory()[2]))
-            f.write("\n")
+# def monitor(log_interval,filename="cpu_logs.txt"):
+#     with open(filename, 'w') as f:
+#         while shared_resource:
+#             f.write("CPU: %f RAM: %f" % (psutil.cpu_percent(log_interval), psutil.virtual_memory()[2]))
+#             f.write("\n")
 
 def main():
 
     # Parse arguments
     parser = argparse.ArgumentParser(description='PyTorch GIN for graph classification')
-    parser.add_argument('--dataset', type=str, default="lambdas_big",
-                        help='name of dataset (default: lambdas_big) note: Needs to be in ~/.dgl')
+    parser.add_argument('--dataset', type=str, default="gangelmc_10k_2021-07-22_noEtaOldChi2",
+                        help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2)') #NOTE: Needs to be in ~/.dgl
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--num_workers', type=int, default=4,
-                        help='Number of dataloader workers (default: 4)')
-    parser.add_argument('--batch_size', type=int, default=1024,
-                        help='input batch size for training (default: 1024)')
+    parser.add_argument('--nworkers', type=int, default=0,
+                        help='Number of dataloader workers (default: 0)')
+    parser.add_argument('--batch', type=int, default=256,
+                        help='input batch size for training (default: 256)')
     parser.add_argument('--epochs', type=int, default=30,
                         help='Number of epochs to train (default: 30)')
-    parser.add_argument('--lr', type=float, default=0.01,
-                        help='Learning rate (default: 0.01)')
-    parser.add_argument('--lr-step', type=int, default=10,
+    parser.add_argument('--lr', type=float, default=1e-3,
+                        help='Learning rate (default: 1e-3)')
+    parser.add_argument('--step', type=int, default=10,
                         help='Learning rate step size (default: 10)')
-    parser.add_argument('--lr-gamma', type=float, default=0.1,
+    parser.add_argument('--gamma', type=float, default=0.1,
                         help='Learning rate reduction factor (default: 0.1)')
-    parser.add_argument('--num_layers', type=int, default=5,
-                        help='Number of model layers (default: 5)')
-    parser.add_argument('--num_mlp_layers', type=int, default=2,
-                        help='Number of output MLP layers (default: 2)')
-    parser.add_argument('--hidden_dim', type=int, default=64,
+    parser.add_argument('--nlayers', type=int, default=2,
+                        help='Number of model layers (default: 2)')
+    parser.add_argument('--nmlp', type=int, default=3,
+                        help='Number of output MLP layers (default: 3)')
+    parser.add_argument('--hdim', type=int, default=64,
                         help='Number of hidden dimensions in model (default: 64)')
-    parser.add_argument('--final_dropout', type=float, default=0.5,
-                        help='Dropout rate for final layer (default: 0.5)')
-    parser.add_argument('--graph_pooling_type', type=str, default="sum", choices=["sum", "average"],
+    parser.add_argument('--dropout', type=float, default=0.2,
+                        help='Dropout rate for final layer (default: 0.2)')
+    parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "average"],
                         help='Pooling type over entire graph: sum or average')
-    parser.add_argument('--neighbor_pooling_type', type=str, default="max", choices=["sum", "average", "max"],
+    parser.add_argument('--npooling', type=str, default="max", choices=["sum", "average", "max"],
                         help='Pooling type over neighboring nodes: sum, average or max')
     parser.add_argument('--learn_eps', action="store_true",
                                         help='Whether to learn the epsilon weighting for the center nodes. Does not affect training accuracy though.')
@@ -78,29 +78,30 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     # Setup data and model
-    train_dataloader, val_dataloader, num_classes, node_feature_dim = load_graph_dataset(dataset=args.dataset,
-                                                    num_workers=args.num_workers, batch_size=args.batch_size)
-    # print(args.num_layers, args.num_mlp_layers, node_feature_dim,
-    #         args.hidden_dim, num_classes, args.final_dropout, args.learn_eps, args.graph_pooling_type,
-    #         args.neighbor_pooling_type, device)#DEBUGGING
-    model = GIN(args.num_layers, args.num_mlp_layers, node_feature_dim,
-            args.hidden_dim, num_classes, args.final_dropout, args.learn_eps, args.graph_pooling_type,
-            args.neighbor_pooling_type, device).to(device)
+    train_dataloader, val_dataloader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset,
+                                                    num_workers=args.nworkers, batch_size=args.batch)
+
+    model = GIN(args.nlayers, args.nmlp, nfeatures,
+            args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
+            args.gpooling).to(device)
+
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_gamma)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma)
     criterion = nn.CrossEntropyLoss()
 
     # Train model
-    utils.train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, max_epochs, dataset=args.dataset, verbose=args.verbose)
-    utils.evaluate(model, device, val_dataloader, dataset=args.dataset, verbose=args.verbose)
+    train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, verbose=args.verbose)
+    evaluate(model, device, val_dataloader, dataset=args.dataset, verbose=args.verbose)
 
     shared_resource = False
 
 if __name__ == '__main__':
-    # Define threads
-    t1 = threading.Thread(target=monitor, name="monitor", args=(4,), daemon=True)
-    t2 = threading.Thread(target=main, name="main")
+    # # Define threads
+    # t1 = threading.Thread(target=monitor, name="monitor", args=(4,), daemon=True)
+    # t2 = threading.Thread(target=main, name="main")
 
-    # Start threads
-    t1.start()
-    t2.start()
+    # # Start threads
+    # t1.start()
+    # t2.start()
+
+    main()

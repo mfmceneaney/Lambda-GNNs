@@ -299,10 +299,10 @@ if torch.cuda.is_available():
     print("*** WARNING *** Trying to use GPU: "+device)
 
 # Load training data
-train_dataset = LambdasDataset("ldata_train_6_23_big") # Make sure this is copied into ~/.dgl folder
+train_dataset = LambdasDataset("ldata_train_6_23") # Make sure this is copied into ~/.dgl folder
 train_dataset.load()
 num_labels = train_dataset.num_labels
-batch_size=32
+batch_size=1024
 num_workers=1
 
 # Create training dataloader
@@ -311,15 +311,12 @@ train_loader = GraphDataLoader(
     batch_size=batch_size,
     drop_last=False,
     shuffle=True,
-#     device=device,
-    pin_memory=True)
-#     num_workers=num_workers)
+    pin_memory=True,
+    num_workers=num_workers)
 
 # Load testing data
-test_dataset = LambdasDataset("ldata_test_6_23_big") # Make sure this is copied into ~/.dgl folder
+test_dataset = LambdasDataset("ldata_test_6_23") # Make sure this is copied into ~/.dgl folder
 test_dataset.load()
-num_labels = test_dataset.num_labels
-# batch_size=32
 
 # Create testing dataloader
 test_loader = GraphDataLoader(
@@ -327,9 +324,8 @@ test_loader = GraphDataLoader(
     batch_size=batch_size,
     drop_last=False,
     shuffle=True,
-#     device=device,
-    pin_memory=True)
-#     num_workers=num_workers)
+    pin_memory=True,
+    num_workers=num_workers)
 
 val_loader = test_loader
 

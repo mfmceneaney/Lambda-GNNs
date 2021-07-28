@@ -64,8 +64,8 @@ def main():
     parser.add_argument('--verbose', action="store_true",
                                     help='Print messages and graphs')
     # Output directory option
-    parser.add_argument('--log', type=str, default='logs/unique/',
-                        help='Log directory for histograms (default: logs/<options used>/)')
+    parser.add_argument('--log', type=str, default='logs/',
+                        help='Log directory for histograms (default: logs/)')
     
     # Early stopping options
     parser.add_argument('--min_delta', type=float, default=0.0,

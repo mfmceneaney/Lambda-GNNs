@@ -400,7 +400,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         nmlp  = trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1])
         hdim  = trial.suggest_int("hdim",args.hdim[0],args.hdim[1])
         do    = trial.suggest_float("do",args.dropout[0],args.dropout[1])
-        lr    = trial.suggest_float("lr",args.lr[0],args.lr[1])
+        lr    = trial.suggest_float("lr",args.lr[0],args.lr[1],log=True)#TODO: Not sure about log yet...
         step  = trial.suggest_int("step",args.step[0],args.step[1])
         gamma = trial.suggest_float("gamma",args.gamma[0],args.gamma[1])
         max_epochs = args.epochs

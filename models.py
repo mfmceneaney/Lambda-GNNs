@@ -6,6 +6,7 @@
 from __future__ import absolute_import, division, print_function
 
 # DGL Graph Learning Imports
+import dgl
 from dgl.nn.pytorch.conv import GINConv
 from dgl.nn.pytorch.glob import SumPooling, AvgPooling, MaxPooling
 
@@ -291,5 +292,10 @@ class HeteroGIN(nn.Module):
         h = torch.cat((score_over_layer,h),dim=-1)
         
         return self.drop(self.final_mlp(h))
+
+    @property
+    def name(self):
+        """Name of model."""
+        return "HeteroGIN"
 
 

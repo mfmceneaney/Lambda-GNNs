@@ -29,7 +29,7 @@ from ignite.contrib.handlers.tensorboard_logger import *
 from ignite.handlers import global_step_from_engine
 
 # Optuna imports
-# import optuna
+import optuna
 
 # Utility Imports
 import datetime, os
@@ -174,10 +174,6 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
         metrics = evaluator.run(val_loader).metrics
         for metric in metrics.keys(): logs['val'][metric].append(metrics[metric])
         if verbose: print(f"Validation Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
-
-    # # Register a pruning handler to the evaluator.
-    # pruning_handler = optuna.integration.PyTorchIgnitePruningHandler(trial, "accuracy", trainer)
-    # evaluator.add_event_handler(Events.COMPLETED, pruning_handler)
 
     # Create a TensorBoard logger
     tb_logger = TensorboardLogger(log_dir=log_dir)
@@ -372,219 +368,223 @@ def evaluate(model,device,dataset="ldata_6_22",log_dir="logs/",verbose=True):
     plt.ylabel('counts')
     f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
 
-# def optimize(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
+def optimize(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
 
-#     ##### MAIN PART #####
+    ##### MAIN PART #####
 
-#     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
-#     study = optuna.create_study(direction="maximize", pruner=pruner)
-#     study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
-#     trial = study.best_trial
+    pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
+    study = optuna.create_study(direction="maximize", pruner=pruner)
+    study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
+    trial = study.best_trial
 
-#     if verbose:
-#         print("Number of finished trials: ", len(study.trials))
-#         print("Best trial:")
-#         print("  Value: ", trial.value)
-#         print("  Params: ")
-#         for key, value in trial.params.items():
-#             print("    {}: {}".format(key, value))
+    if verbose:
+        print("Number of finished trials: ", len(study.trials))
+        print("Best trial:")
+        print("  Value: ", trial.value)
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
 
-#     def objective(trial):
+    def objective(trial):
 
-#         # Get parameter suggestions for trial
-#         batch_size = trial.suggest_float("batch_size",args.batch[0],args.batch[1])
-#         nlayers = trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1])
-#         nmlp  = trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1])
-#         hdim  = trial.suggest_int("hdim",args.hdim[0],args.hdim[1])
-#         do    = trial.suggest_float("do",args.do[0],args.do[1])
-#         lr    = trial.suggest_float("lr",args.lr[0],args.lr[1])
-#         step  = trial.suggest_int("step",args.step[0],args.step[1])
-#         gamma = trial.suggest_int("gamma",args.gamma[0],args.gamma[1])
+        # Get parameter suggestions for trial
+        batch_size = trial.suggest_float("batch_size",args.batch[0],args.batch[1])
+        nlayers = trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1])
+        nmlp  = trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1])
+        hdim  = trial.suggest_int("hdim",args.hdim[0],args.hdim[1])
+        do    = trial.suggest_float("do",args.do[0],args.do[1])
+        lr    = trial.suggest_float("lr",args.lr[0],args.lr[1])
+        step  = trial.suggest_int("step",args.step[0],args.step[1])
+        gamma = trial.suggest_int("gamma",args.gamma[0],args.gamma[1])
 
-#         # Setup data and model
-#         train_dataloader, val_dataloader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset,
-#                                                         num_workers=args.nworkers, batch_size=batch)
+        # Setup data and model
+        train_dataloader, val_dataloader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset,
+                                                        num_workers=args.nworkers, batch_size=batch)
 
-#         # Initiate model and optimizer, scheduler, loss
-#         model = GIN(nlayers,nmlp,nfeatures,hdim,nclasses,do,args.learn_eps,args.npooling,args.gpooling).to(args.device)
-#         optimizer = optim.Adam(model.parameters(), lr=lr)
-#         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step, gamma=gamma)
-#         criterion = nn.CrossEntropyLoss()
+        # Initiate model and optimizer, scheduler, loss
+        model = GIN(nlayers,nmlp,nfeatures,hdim,nclasses,do,args.learn_eps,args.npooling,args.gpooling).to(args.device)
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step, gamma=gamma)
+        criterion = nn.CrossEntropyLoss()
 
-#         # Make sure log/save directories exist
-#         try:
-#             os.mkdir(os.path.join(args.log_dir,"tb_logs/tmp"))
-#         except Exception:
-#             if args.verbose: print("Could not create directory:",os.path.join(args.log_dir,"tb_logs/tmp"))
+        # Make sure log/save directories exist
+        try:
+            os.mkdir(os.path.join(args.log_dir,"tb_logs/tmp"))
+        except Exception:
+            if args.verbose: print("Could not create directory:",os.path.join(args.log_dir,"tb_logs/tmp"))
 
-#         # Show model if requested
-#         if args.verbose: print(model)
+        # Show model if requested
+        if args.verbose: print(model)
 
-#         # Logs for matplotlib plots
-#         logs={'train':{'loss':[],'accuracy':[],'roc_auc':[]}, 'val':{'loss':[],'accuracy':[],'roc_auc':[]}}
+        # Logs for matplotlib plots
+        logs={'train':{'loss':[],'accuracy':[],'roc_auc':[]}, 'val':{'loss':[],'accuracy':[],'roc_auc':[]}}
 
-#         # Create trainer
-#         def train_step(engine, batch):
-#             model.train()
-#             x, label   = batch
-#             y = label[:,0].clone().detach().long()
-#             x      = x.to(device)
-#             y      = y.to(device)
-#             y_pred = model(x)
-#             loss   = criterion(y_pred, y)
-#             optimizer.zero_grad()
-#             loss.backward()
-#             optimizer.step()
-#             test_Y = y.clone().detach().float().view(-1, 1) 
-#             probs_Y = torch.softmax(y_pred, 1)
-#             argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
-#             acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
-#             return {
-#                     'y_pred': y_pred,
-#                     'y': y,
-#                     'y_pred_preprocessed': argmax_Y,
-#                     'loss': loss.detach().item(),
-#                     'accuracy': acc
-#                     }
+        # Create trainer
+        def train_step(engine, batch):
+            model.train()
+            x, label   = batch
+            y = label[:,0].clone().detach().long()
+            x      = x.to(device)
+            y      = y.to(device)
+            y_pred = model(x)
+            loss   = criterion(y_pred, y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            test_Y = y.clone().detach().float().view(-1, 1) 
+            probs_Y = torch.softmax(y_pred, 1)
+            argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
+            acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
+            return {
+                    'y_pred': y_pred,
+                    'y': y,
+                    'y_pred_preprocessed': argmax_Y,
+                    'loss': loss.detach().item(),
+                    'accuracy': acc
+                    }
 
-#         trainer = Engine(train_step)
+        trainer = Engine(train_step)
 
-#         # Add metrics
-#         accuracy  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
-#         accuracy.attach(trainer, 'accuracy')
-#         loss      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
-#         loss.attach(trainer, 'loss')
-#         roc_auc   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
-#         roc_auc.attach(trainer,'roc_auc')
+        # Add metrics
+        accuracy  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
+        accuracy.attach(trainer, 'accuracy')
+        loss      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
+        loss.attach(trainer, 'loss')
+        roc_auc   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
+        roc_auc.attach(trainer,'roc_auc')
 
-#         # Create validator
-#         def val_step(engine, batch):
-#             model.eval()
-#             x, label   = batch
-#             y = label[:,0].clone().detach().long()
-#             x      = x.to(device)
-#             y      = y.to(device)
-#             y_pred = model(x)#TODO: Modify this so it works with PFN/EFN as well?
-#             loss   = criterion(y_pred, y)
-#             optimizer.zero_grad()
-#             loss.backward()
-#             optimizer.step()
-#             test_Y = y.clone().detach().float().view(-1, 1) 
-#             probs_Y = torch.softmax(y_pred, 1)
-#             argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
-#             acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
-#             model.train()
-#             return {
-#                     'y_pred': y_pred,
-#                     'y': y,
-#                     'y_pred_preprocessed': argmax_Y,
-#                     'loss': loss.detach().item(),
-#                     'accuracy': acc
-#                     }
+        # Create validator
+        def val_step(engine, batch):
+            model.eval()
+            x, label   = batch
+            y = label[:,0].clone().detach().long()
+            x      = x.to(device)
+            y      = y.to(device)
+            y_pred = model(x)#TODO: Modify this so it works with PFN/EFN as well?
+            loss   = criterion(y_pred, y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            test_Y = y.clone().detach().float().view(-1, 1) 
+            probs_Y = torch.softmax(y_pred, 1)
+            argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
+            acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
+            model.train()
+            return {
+                    'y_pred': y_pred,
+                    'y': y,
+                    'y_pred_preprocessed': argmax_Y,
+                    'loss': loss.detach().item(),
+                    'accuracy': acc
+                    }
 
-#         evaluator = Engine(val_step)
+        evaluator = Engine(val_step)
 
-#         # Add metrics
-#         accuracy_  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
-#         accuracy_.attach(evaluator, 'accuracy')
-#         loss_      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
-#         loss_.attach(evaluator, 'loss')
-#         roc_auc_   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
-#         roc_auc_.attach(evaluator,'roc_auc')
+        # Add metrics
+        accuracy_  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
+        accuracy_.attach(evaluator, 'accuracy')
+        loss_      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
+        loss_.attach(evaluator, 'loss')
+        roc_auc_   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
+        roc_auc_.attach(evaluator,'roc_auc')
 
-#         @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
-#         def log_training_loss(trainer):
-#             if verbose: print(f"\rEpoch[{trainer.state.epoch}/{max_epochs} : " +
-#                 f"{(trainer.state.iteration-(trainer.state.epoch-1)*trainer.state.epoch_length)/trainer.state.epoch_length*100:.1f}%] " +
-#                 f"Loss: {trainer.state.output['loss']:.3f} Accuracy: {trainer.state.output['accuracy']:.3f}",end='')
+        @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
+        def log_training_loss(trainer):
+            if verbose: print(f"\rEpoch[{trainer.state.epoch}/{max_epochs} : " +
+                f"{(trainer.state.iteration-(trainer.state.epoch-1)*trainer.state.epoch_length)/trainer.state.epoch_length*100:.1f}%] " +
+                f"Loss: {trainer.state.output['loss']:.3f} Accuracy: {trainer.state.output['accuracy']:.3f}",end='')
 
-#         @trainer.on(Events.EPOCH_COMPLETED)
-#         def stepLR(trainer):
-#             prev_lr = scheduler.get_last_lr()
-#             scheduler.step()
-#             new_lr = scheduler.get_last_lr()
-#             if prev_lr != new_lr and verbose:
-#                 print(f"\nLearning rate: {prev_lr[0]:.4f} -> {new_lr[0]:.4f}",end="")
+        @trainer.on(Events.EPOCH_COMPLETED)
+        def stepLR(trainer):
+            prev_lr = scheduler.get_last_lr()
+            scheduler.step()
+            new_lr = scheduler.get_last_lr()
+            if prev_lr != new_lr and verbose:
+                print(f"\nLearning rate: {prev_lr[0]:.4f} -> {new_lr[0]:.4f}",end="")
 
-#         @trainer.on(Events.EPOCH_COMPLETED)
-#         def log_training_results(trainer):
-#             metrics = evaluator.run(train_loader).metrics
-#             for metric in metrics.keys(): logs['train'][metric].append(metrics[metric])
-#             if verbose: print(f"\nTraining Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
+        @trainer.on(Events.EPOCH_COMPLETED)
+        def log_training_results(trainer):
+            metrics = evaluator.run(train_loader).metrics
+            for metric in metrics.keys(): logs['train'][metric].append(metrics[metric])
+            if verbose: print(f"\nTraining Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
 
-#         @trainer.on(Events.EPOCH_COMPLETED)
-#         def log_validation_results(trainer):
-#             metrics = evaluator.run(val_loader).metrics
-#             for metric in metrics.keys(): logs['val'][metric].append(metrics[metric])
-#             if verbose: print(f"Validation Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
+        @trainer.on(Events.EPOCH_COMPLETED)
+        def log_validation_results(trainer):
+            metrics = evaluator.run(val_loader).metrics
+            for metric in metrics.keys(): logs['val'][metric].append(metrics[metric])
+            if verbose: print(f"Validation Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
 
-#         # Create a TensorBoard logger
-#         tb_logger = TensorboardLogger(log_dir=log_dir)
+        # Register a pruning handler to the evaluator.
+        pruning_handler = optuna.integration.PyTorchIgnitePruningHandler(trial, "accuracy", trainer)
+        evaluator.add_event_handler(Events.COMPLETED, pruning_handler)
 
-#         # Attach the logger to the trainer to log training loss at each iteration
-#         tb_logger.attach_output_handler(
-#             trainer,
-#             event_name=Events.ITERATION_COMPLETED,
-#             tag="training_by_iteration",
-#             output_transform=lambda x: x["loss"]
-#         )
+        # Create a TensorBoard logger
+        tb_logger = TensorboardLogger(log_dir=log_dir)
+
+        # Attach the logger to the trainer to log training loss at each iteration
+        tb_logger.attach_output_handler(
+            trainer,
+            event_name=Events.ITERATION_COMPLETED,
+            tag="training_by_iteration",
+            output_transform=lambda x: x["loss"]
+        )
             
-#         # Attach the logger to the evaluator on the training dataset and log Loss, Accuracy metrics after each epoch
-#         tb_logger.attach_output_handler(
-#             trainer,
-#             event_name=Events.EPOCH_COMPLETED,
-#             tag="training",
-#             metric_names=["loss","accuracy","roc_auc"],
-#             global_step_transform=global_step_from_engine(trainer),
-#         )
+        # Attach the logger to the evaluator on the training dataset and log Loss, Accuracy metrics after each epoch
+        tb_logger.attach_output_handler(
+            trainer,
+            event_name=Events.EPOCH_COMPLETED,
+            tag="training",
+            metric_names=["loss","accuracy","roc_auc"],
+            global_step_transform=global_step_from_engine(trainer),
+        )
 
-#         # Attach the logger to the evaluator on the validation dataset and log Loss, Accuracy metrics after
-#         tb_logger.attach_output_handler(
-#             evaluator,
-#             event_name=Events.EPOCH_COMPLETED,
-#             tag="validation",
-#             metric_names=["loss","accuracy","roc_auc"],
-#             global_step_transform=global_step_from_engine(evaluator)
-#         )
+        # Attach the logger to the evaluator on the validation dataset and log Loss, Accuracy metrics after
+        tb_logger.attach_output_handler(
+            evaluator,
+            event_name=Events.EPOCH_COMPLETED,
+            tag="validation",
+            metric_names=["loss","accuracy","roc_auc"],
+            global_step_transform=global_step_from_engine(evaluator)
+        )
 
-#         # Attach the logger to the trainer to log optimizer's parameters, e.g. learning rate at each iteration
-#         tb_logger.attach_opt_params_handler(
-#             trainer,
-#             event_name=Events.ITERATION_STARTED,
-#             optimizer=optimizer,
-#             param_name='lr'  # optional
-#         )
+        # Attach the logger to the trainer to log optimizer's parameters, e.g. learning rate at each iteration
+        tb_logger.attach_opt_params_handler(
+            trainer,
+            event_name=Events.ITERATION_STARTED,
+            optimizer=optimizer,
+            param_name='lr'  # optional
+        )
 
-#         # Run training loop
-#         trainer.run(train_loader, max_epochs=max_epochs)
-#         tb_logger.close() #IMPORTANT!
-#         if save_path!="":
-#             torch.save(model.state_dict(), save_path)
+        # Run training loop
+        trainer.run(train_loader, max_epochs=max_epochs)
+        tb_logger.close() #IMPORTANT!
+        if save_path!="":
+            torch.save(model.state_dict(), save_path)#TODO: Make unique identifier by trial?
 
-#         # # Create training/validation loss plot
-#         f = plt.figure()
-#         plt.subplot()
-#         plt.title('Loss per epoch')
-#         plt.plot(logs['train']['loss'],label="training")
-#         plt.plot(logs['val']['loss'],label="validation")
-#         plt.legend(loc='best', frameon=False)
-#         plt.ylabel('loss')
-#         plt.xlabel('epoch')
-#         plt.legend()
-#         f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+        # Create training/validation loss plot
+        f = plt.figure()
+        plt.subplot()
+        plt.title('Loss per epoch')
+        plt.plot(logs['train']['loss'],label="training")
+        plt.plot(logs['val']['loss'],label="validation")
+        plt.legend(loc='best', frameon=False)
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend()
+        f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
 
-#         # # Create training/validation accuracy plot
-#         f = plt.figure()
-#         plt.subplot()
-#         plt.title('Accuracy per epoch')
-#         plt.plot(logs['train']['accuracy'],label="training")
-#         plt.plot(logs['val']['accuracy'],label="validation")
-#         plt.legend(loc='best', frameon=False)
-#         plt.ylabel('accuracy')
-#         plt.xlabel('epoch')
-#         f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+        # Create training/validation accuracy plot
+        f = plt.figure()
+        plt.subplot()
+        plt.title('Accuracy per epoch')
+        plt.plot(logs['train']['accuracy'],label="training")
+        plt.plot(logs['val']['accuracy'],label="validation")
+        plt.legend(loc='best', frameon=False)
+        plt.ylabel('accuracy')
+        plt.xlabel('epoch')
+        f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
         
-#         if verbose: plt.show() #DEBUGGING...for now...
+        if verbose: plt.show() #DEBUGGING...for now...
 
 # Define dataset class
 

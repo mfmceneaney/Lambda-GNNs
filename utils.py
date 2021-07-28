@@ -356,7 +356,7 @@ def evaluate(model,device,dataset="ldata_6_22",log_dir="logs/",verbose=True):
 
     # make legend and show plot
     plt.legend([model.name+f": AUC={auc:.4f}"],loc='lower left', frameon=False)
-    f.savefig(model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+dataset+".png")
+    f.savefig(os.path.join(log_dir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
 
     ##########################################################
     # Plot testing decisions
@@ -370,7 +370,7 @@ def evaluate(model,device,dataset="ldata_6_22",log_dir="logs/",verbose=True):
     plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
     plt.xlabel('output')
     plt.ylabel('counts')
-    f.savefig(model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png")
+    f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
 
 # def optimize(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
 

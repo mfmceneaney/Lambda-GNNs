@@ -22,7 +22,7 @@ import argparse, math, datetime, os, psutil, threading
 
 # Custom Imports
 from utils import LambdasDataset, load_graph_dataset, train, evaluate
-from models import GIN
+from models import GIN, HeteroGIN
 
 # # Set key for monitor thread to check if main thread is done
 # shared_resource = True
@@ -47,21 +47,21 @@ def main():
     parser.add_argument('--batch', type=int, default=256,
                         help='input batch size for training (default: 256)')
     parser.add_argument('--epochs', type=int, default=30,
-                        help='Number of epochs to train (default: 30)')
+                        help='Number of epochs to train (default: 100)')
     parser.add_argument('--lr', type=float, default=1e-3,
                         help='Learning rate (default: 1e-3)')
     parser.add_argument('--step', type=int, default=10,
-                        help='Learning rate step size (default: 10)')
+                        help='Learning rate step size (default: 20)')
     parser.add_argument('--gamma', type=float, default=0.1,
-                        help='Learning rate reduction factor (default: 0.1)')
+                        help='Learning rate reduction factor (default: 0.63)')
     parser.add_argument('--nlayers', type=int, default=2,
-                        help='Number of model layers (default: 2)')
+                        help='Number of model layers (default: 3)')
     parser.add_argument('--nmlp', type=int, default=3,
                         help='Number of output MLP layers (default: 3)')
     parser.add_argument('--hdim', type=int, default=64,
                         help='Number of hidden dimensions in model (default: 64)')
-    parser.add_argument('--dropout', type=float, default=0.2,
-                        help='Dropout rate for final layer (default: 0.2)')
+    parser.add_argument('--dropout', type=float, default=0.8,
+                        help='Dropout rate for final layer (default: 0.8)')
     parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "average"],
                         help='Pooling type over entire graph: sum or average')
     parser.add_argument('--npooling', type=str, default="max", choices=["sum", "average", "max"],
@@ -72,6 +72,12 @@ def main():
                                         help='Output file for CPU/RAM monitoring')
     parser.add_argument('--verbose', action="store_true",
                                     help='Print messages and graphs')
+    # HeteroGIN Options
+    parser.add_argument('--nfmlp', type=int, default=3,
+                        help='Number of output MLP layers for HeteroGIN model (default: 3)')
+    parser.add_argument('--hfdim', type=int, default=0,
+                        help='Number of hidden final dimensions in HeteroGIN model (default: 0)')
+
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -87,6 +93,12 @@ def main():
     model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)
+
+    if args.hfdim > 0:
+        nkinematics = 6 #TODO: Automate this assignment.
+        model = HeteroGIN(args.nlayers, args.nmlp, nfeatures,
+            args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
+            args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma)

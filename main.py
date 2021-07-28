@@ -78,6 +78,10 @@ def main():
     parser.add_argument('--hfdim', type=int, default=0,
                         help='Number of hidden final dimensions in HeteroGIN model (default: 0)')
 
+    # Output directory option
+    parser.add_argument('--log', type=str, default='logs/unique/',
+                        help='Log directory for histograms (default: logs/<options used>/)')
+
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -104,9 +108,13 @@ def main():
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma)
     criterion = nn.CrossEntropyLoss()
 
+    # Setup log directory
+    try: os.mkdir(args.log)
+    except FileExistsError: print('Directory:',args.log,'already exists!')
+
     # Train model
-    train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, verbose=args.verbose)
-    evaluate(model, device, dataset=args.dataset, verbose=args.verbose)
+    train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, log_dir=args.log, verbose=args.verbose)
+    evaluate(model, device, dataset=args.dataset, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
     # shared_resource = False

@@ -35,8 +35,8 @@ def main():
 
     # Parse arguments
     parser = argparse.ArgumentParser(description='PyTorch GIN for graph classification')
-    parser.add_argument('--dataset', type=str, default="lambdas_big",
-                        help='name of dataset (default: lambdas_big) note: Needs to be in ~/.dgl')
+    parser.add_argument('--dataset', type=str, default="gangelmc_10k_2021-07-22_noEtaOldChi2",
+                        help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2) note: Needs to be in ~/.dgl')
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: cuda:0)')
     parser.add_argument('--nworkers', type=int, default=0,
@@ -45,20 +45,20 @@ def main():
                         help='input batch size range for training (default: 256 257)')
     parser.add_argument('--epochs', type=int, default=30,
                         help='Number of epochs to train (default: 30)')
-    parser.add_argument('--lr', type=float, nargs=2, default=[1e-1,1e-6],
-                        help='Learning rate range (default: 1e-1 1e-5)')
-    parser.add_argument('--step', type=int, nargs=2, default=[100,101],
+    parser.add_argument('--lr', type=float, nargs=2, default=[1e-2,1e-4],
+                        help='Learning rate range (default: 1e-2 1e-5)')
+    parser.add_argument('--step', type=int, nargs=2, default=[10,101],
                         help='Learning rate step size range (default: 100 101)')
-    parser.add_argument('--gamma', type=float, nargs=2, default=[0.1,0.6],
+    parser.add_argument('--gamma', type=float, nargs=2, default=[0.5,1.0],
                         help='Learning rate reduction factor range (default: 0.1 0.6)')
     parser.add_argument('--nlayers', type=int, nargs=2, default=[2,9],
                         help='Number of model layers range (default: 2 9)')
-    parser.add_argument('--nmlp', type=int, nargs=2, default=[2,5],
-                        help='Number of output MLP layers range (default: 2 5)')
-    parser.add_argument('--hdim', type=int, nargs=2, default=[32,129],
-                        help='Number of hidden dimensions in model range (default: 32 129)')
-    parser.add_argument('--dropout', type=float, nargs=2, default=[0.0,0.5],
-                        help='Dropout rate for final layer range (default: 0.0 0.5)')
+    parser.add_argument('--nmlp', type=int, nargs=2, default=[3,4],
+                        help='Number of output MLP layers range (default: 3 4)')
+    parser.add_argument('--hdim', type=int, nargs=2, default=[128,129],
+                        help='Number of hidden dimensions in model range (default: 128 129)')
+    parser.add_argument('--dropout', type=float, nargs=2, default=[0.5,1.0],
+                        help='Dropout rate for final layer range (default: 0.5 1.0)')
     parser.add_argument('--gpooling', type=str, default="sum", choices=["sum", "mean"],
                         help='Pooling type over entire graph: sum or mean')
     parser.add_argument('--npooling', type=str, default="max", choices=["sum", "mean", "max"],

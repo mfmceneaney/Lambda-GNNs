@@ -5,6 +5,9 @@
 
 from __future__ import absolute_import, division, print_function
 
+# ML Imports
+import matplotlib.pyplot as plt
+
 # DGL Graph Learning Imports
 from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
@@ -91,7 +94,8 @@ def main():
 
     # Train model
     train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, verbose=args.verbose)
-    evaluate(model, device, val_dataloader, dataset=args.dataset, verbose=args.verbose)
+    evaluate(model, device, dataset=args.dataset, verbose=args.verbose)
+    if args.verbose: plt.show()
 
     shared_resource = False
 

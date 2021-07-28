@@ -18,7 +18,7 @@ import torch.optim as optim
 import argparse, math, datetime, os, psutil, threading
 
 # Custom Imports
-from utils import LambdasDataset, train, load_graph_dataset
+from utils import LambdasDataset, train, load_graph_dataset, optimize
 from models import GIN
 
 # Set key for monitor thread to check if main thread is done
@@ -84,7 +84,7 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     # Run optimization study
-    utils.optimize(args)
+    optimize(args)
 
     shared_resource = False
 

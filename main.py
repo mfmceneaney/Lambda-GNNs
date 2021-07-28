@@ -24,16 +24,6 @@ import argparse, math, datetime, os, psutil, threading
 from utils import LambdasDataset, load_graph_dataset, train, evaluate
 from models import GIN, HeteroGIN
 
-# # Set key for monitor thread to check if main thread is done
-# shared_resource = True
-# lock = threading.Lock()
-
-# def monitor(log_interval,filename="cpu_logs.txt"):
-#     with open(filename, 'w') as f:
-#         while shared_resource:
-#             f.write("CPU: %f RAM: %f" % (psutil.cpu_percent(log_interval), psutil.virtual_memory()[2]))
-#             f.write("\n")
-
 def main():
 
     # Parse arguments
@@ -68,8 +58,6 @@ def main():
                         help='Pooling type over neighboring nodes: sum, average or max')
     parser.add_argument('--learn_eps', action="store_true",
                                         help='Whether to learn the epsilon weighting for the center nodes. Does not affect training accuracy though.')
-    parser.add_argument('--filename', type = str, default = "cpu_logs.txt",
-                                        help='Output file for CPU/RAM monitoring')
     parser.add_argument('--verbose', action="store_true",
                                     help='Print messages and graphs')
     # HeteroGIN Options
@@ -81,6 +69,14 @@ def main():
     # Output directory option
     parser.add_argument('--log', type=str, default='logs/unique/',
                         help='Log directory for histograms (default: logs/<options used>/)')
+
+    # Early stopping options
+    parser.add_argument('--min_delta', type=float, default=0.0,
+                        help='Minimum change threshold for early stopping (default: 0.0)')
+    parser.add_argument('--cumulative_delta', action='store_true',
+                        help='Use cumulative change since last patience reset as opposed to last event (default: false)')
+    parser.add_argument('--patience', type=int, default=10,
+                        help='Number of epochs to wait for early stopping (default: 10)')
 
     args = parser.parse_args()
 
@@ -117,15 +113,6 @@ def main():
     evaluate(model, device, dataset=args.dataset, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
-    # shared_resource = False
-
 if __name__ == '__main__':
-    # # Define threads
-    # t1 = threading.Thread(target=monitor, name="monitor", args=(4,), daemon=True)
-    # t2 = threading.Thread(target=main, name="main")
-
-    # # Start threads
-    # t1.start()
-    # t2.start()
 
     main()

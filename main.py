@@ -97,7 +97,7 @@ def main():
     evaluate(model, device, dataset=args.dataset, verbose=args.verbose)
     if args.verbose: plt.show()
 
-    shared_resource = False
+    # shared_resource = False
 
 if __name__ == '__main__':
     # # Define threads

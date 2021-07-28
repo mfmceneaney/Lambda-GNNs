@@ -276,6 +276,10 @@ def evaluate(model,device,dataset="ldata_6_22",log_dir="logs/",verbose=True):
     mass_bg_false  = ma.array(test_dataset.labels[:,1].clone().detach().float(),
                                 mask=np.logical_or(~(torch.squeeze(argmax_Y) == 0),~(torch.squeeze(argmax_Y) != test_dataset.labels[:,0].clone().detach().float())))
 
+    # Get separated mass distributions MC-Matched
+    mass_sig_MC   = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 1))
+    mass_bg_MC    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 0))
+
     # Plot mass decisions separated into signal/background
     bins = 100
     low_high = (1.1,1.13)
@@ -317,8 +321,8 @@ def evaluate(model,device,dataset="ldata_6_22",log_dir="logs/",verbose=True):
     low_high = (1.1,1.13)
     f = plt.figure()
     plt.title('Separated mass distribution MC-matched')
-    plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-    plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    plt.hist(mass_sig_MC[~mass_sig_MC.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+    plt.hist(mass_bg_MC[~mass_bg_MC.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')

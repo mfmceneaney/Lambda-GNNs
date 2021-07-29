@@ -283,12 +283,8 @@ def evaluate(model,device,dataset="ldata_6_22",prefix="",log_dir="logs/",verbose
         (test_Y == argmax_Y.float()).sum().item() / len(test_Y) * 100))
 
     # Get separated mass distributions
-    print(test_dataset.labels[:,1].clone().detach().float().shape)
-    print(argmax_Y.shape)
-    print(argmax_Y.device)
-    print(test_dataset.labels[:,1].clone().detach().float().device)
-    mass_Y = test_dataset.labels[:,1].clone().detach().float().to(device)
-    mass_sig_Y    = ma.array(mass_Y,mask=~(argmax_Y == 1))
+    argmax_Y      = argmax_Y.cpu()
+    mass_sig_Y    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 1))
     mass_bg_Y     = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 0))
 
     # Get false-positive true-negatives and vice versa

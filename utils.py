@@ -282,8 +282,12 @@ def evaluate(model,device,dataset="ldata_6_22",prefix="",log_dir="logs/",verbose
     if verbose: print('Accuracy of predictions on the test set: {:4f}%'.format(
         (test_Y == argmax_Y.float()).sum().item() / len(test_Y) * 100))
 
+    # Copy arrays back to CPU
+    test_Y   = test_Y.cpu()
+    probs_Y  = probs_Y.cpu()
+    argmax_Y = argmax_Y.cpu()
+
     # Get separated mass distributions
-    argmax_Y      = argmax_Y.cpu()
     mass_sig_Y    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 1))
     mass_bg_Y     = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 0))
 

@@ -613,12 +613,19 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         model.eval()
         test_bg    = batch(test_dataset.graphs)
         test_Y     = test_dataset.labels[:,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
+        test_bg    = test_bg.to(args.device)
+        test_Y     = test_Y.to(args.device)
         prediction = model(test_bg)
         probs_Y    = torch.softmax(prediction, 1)
         argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
         test_acc   = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
         if verbose: print('Accuracy of predictions on the test set: {:4f}%'.format(
             (test_Y == argmax_Y.float()).sum().item() / len(test_Y) * 100))
+
+        # Copy arrays back to CPU
+        test_Y   = test_Y.cpu()
+        probs_Y  = probs_Y.cpu()
+        argmax_Y = argmax_Y.cpu()
 
         # Get separated mass distributions
         mass_sig_Y    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 1))

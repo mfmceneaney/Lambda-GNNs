@@ -1,6 +1,7 @@
 ###############################
 # Matthew McEneaney
-# 7/8/21
+# COLABORATORY VERSION
+# 7/29/21
 ###############################
 
 from __future__ import absolute_import, division, print_function
@@ -40,7 +41,11 @@ import datetime, os
 # Local Imports
 from models import GIN, HeteroGIN
 
-def load_graph_dataset(dataset="ldata_6_22",batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
+def load_graph_dataset(dataset="ldata_6_22",prefix="",batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
+    
+    # Add directory prefix for colab
+    dataset = os.path.join(prefix,dataset)
+
     # Load training data
     train_dataset = LambdasDataset(dataset+"_train") # Make sure this is copied into ~/.dgl folder
     train_dataset.load()
@@ -72,7 +77,7 @@ def load_graph_dataset(dataset="ldata_6_22",batch_size=1024,drop_last=False,shuf
     return train_loader, val_loader, num_labels, node_feature_dim    
 
 def train(args, model, device, train_loader, val_loader, optimizer, scheduler, criterion, max_epochs,
-            dataset="ldata_6_22", log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
+            dataset="ldata_6_22",prefix="", log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
 
     # Make sure log/save directories exist
     try:
@@ -260,10 +265,10 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     
     # if verbose: plt.show() #DEBUGGING...for now...
 
-def evaluate(model,device,dataset="ldata_6_22",log_dir="logs/",verbose=True):
+def evaluate(model,device,dataset="ldata_6_22",prefix="",log_dir="logs/",verbose=True):
     #TODO: Add .to(device) for this method so the argument isn't useless
     # Load validation data
-    test_dataset = LambdasDataset(dataset+"_test") # Make sure this is copied into ~/.dgl folder
+    test_dataset = LambdasDataset(os.path.join(prefix,dataset+"_test")) # Make sure this is copied into ~/.dgl folder
     test_dataset.load()
 
     model.eval()
@@ -389,7 +394,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
     #NOTE: As of right now log_dir='logs/' should end with the slash
 
     # Load validation data
-    test_dataset = LambdasDataset(args.dataset+"_test") # Make sure this is copied into ~/.dgl folder
+    test_dataset = LambdasDataset(os.path.join(args.prefix,args.dataset+"_test")) # Make sure this is copied into ~/.dgl folder
     test_dataset.load()
 
     def objective(trial):
@@ -406,7 +411,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         max_epochs = args.epochs
 
         # Setup data and model
-        train_loader, val_loader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset,
+        train_loader, val_loader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset,prefix=args.prefix,
                                                         num_workers=args.nworkers, batch_size=batch_size)
 
         # Initiate model and optimizer, scheduler, loss

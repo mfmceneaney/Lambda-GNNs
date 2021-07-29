@@ -1,6 +1,7 @@
 ###############################
 # Matthew McEneaney
-# 7/8/21
+# COLABORATORY VERSION
+# 7/29/21
 ###############################
 
 from __future__ import absolute_import, division, print_function
@@ -74,6 +75,10 @@ def main():
                         help='Use cumulative change since last patience reset as opposed to last event (default: false)')
     parser.add_argument('--patience', type=int, default=10,
                         help='Number of epochs to wait for early stopping (default: 10)')
+
+    # Input dataset directory prefix option
+    parser.add_argument('--prefix', type=str, default='/content/gdrive/My Drive/',
+                        help='Prefix for where dataset is stored (default: /content/gdrive/My Drive/)')
 
     args = parser.parse_args()
 

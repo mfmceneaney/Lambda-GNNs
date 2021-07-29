@@ -274,6 +274,8 @@ def evaluate(model,device,dataset="ldata_6_22",prefix="",log_dir="logs/",verbose
     model.eval()
     test_bg    = batch(test_dataset.graphs)
     test_Y     = test_dataset.labels[:,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
+    test_bg    = test_bg.to(device)
+    test_Y     = test_Y.to(device)
     prediction = model(test_bg)
     probs_Y    = torch.softmax(prediction, 1)
     argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)

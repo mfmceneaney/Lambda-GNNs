@@ -423,7 +423,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         # Make sure log/save directories exist
         trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number)
         try:
-            os.mkdir(args.log+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
+            os.mkdir(args.log+'/'+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
         except FileExistsError:
             if args.verbose: print("Directory:",os.path.join(args.log,trialdir))
         trialdir = os.path.join(args.log,trialdir)

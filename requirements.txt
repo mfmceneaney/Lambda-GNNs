@@ -1,8 +1,17 @@
 argparse
 psutil
+numpy
 dgl
 torch
 torchvision # (Just for tensorboard logging)
 pytorch-ignite
+optuna
 matplotlib
-scikitlearn
+scikit-learn
+
+# For creating dataset
+uproot
+uproot3
+awkward
+numpy
+

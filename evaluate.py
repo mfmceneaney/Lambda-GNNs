@@ -1,6 +1,6 @@
 ###############################
 # Matthew McEneaney
-# 7/8/21
+# 7/28/21
 ###############################
 
 from __future__ import absolute_import, division, print_function
@@ -9,19 +9,16 @@ from __future__ import absolute_import, division, print_function
 import matplotlib.pyplot as plt
 
 # DGL Graph Learning Imports
-from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
 
 # PyTorch Imports
 import torch
-import torch.nn as nn
-import torch.optim as optim
 
 # Utility Imports
-import argparse, math, datetime, os, psutil, threading
+import argparse, os
 
 # Custom Imports
-from utils import LambdasDataset, load_graph_dataset, train, evaluate
+from utils import load_graph_dataset, evaluate
 from models import GIN, HeteroGIN
 
 def main():
@@ -36,17 +33,7 @@ def main():
                         help='Number of dataloader workers (default: 0)')
     parser.add_argument('--batch', type=int, default=256,
                         help='input batch size for training (default: 256)')
-    parser.add_argument('--epochs', type=int, default=30,
-                        help='Number of epochs to train (default: 100)')
-    parser.add_argument('--lr', type=float, default=1e-3,
-                        help='Learning rate (default: 1e-3)')
-    parser.add_argument('--step', type=int, default=0,
-                        help='Learning rate step size (default: 0)')
-    parser.add_argument('--gamma', type=float, default=0.1,
-                        help='Learning rate reduction factor (default: 0.63)')
-    parser.add_argument('--thresh', type=float, default=1e-4,
-                        help='Minimum change threshold for reducing lr on plateau (default: 1e-4)')
-    parser.add_argument('--nlayers', type=int, default=2,
+    parser.add_argument('--nlayers', type=int, default=3,
                         help='Number of model layers (default: 3)')
     parser.add_argument('--nmlp', type=int, default=3,
                         help='Number of output MLP layers (default: 3)')
@@ -69,16 +56,12 @@ def main():
                         help='Number of hidden final dimensions in HeteroGIN model (default: 0)')
 
     # Output directory option
-    parser.add_argument('--log', type=str, default='logs/',
-                        help='Log directory for histograms (default: logs/)')
+    parser.add_argument('--log', type=str, default='eval/',
+                        help='Log directory for histograms (default: eval/)')
 
-    # Early stopping options
-    parser.add_argument('--min_delta', type=float, default=0.0,
-                        help='Minimum change threshold for early stopping (default: 0.0)')
-    parser.add_argument('--cumulative_delta', action='store_true',
-                        help='Use cumulative change since last patience reset as opposed to last event (default: false)')
-    parser.add_argument('--patience', type=int, default=10,
-                        help='Number of epochs to wait for early stopping (default: 10)')
+    # Model load directory
+    parser.add_argument('--path', type=str, default='torch_models',
+                        help='Log directory for histograms (default: torch_models)')
 
     args = parser.parse_args()
 
@@ -102,20 +85,14 @@ def main():
             args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
             args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
 
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.gamma, patience=args.patience,
-    # threshold=args.thresh, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=False)
-    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, args.gamma, last_epoch=-1, verbose=False)
-    if args.step>0:
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma)
-    criterion = nn.CrossEntropyLoss()
+    model.load_state_dict(torch.load(args.path))
+    model.eval()
 
     # Setup log directory
     try: os.mkdir(args.log)
     except FileExistsError: print('Directory:',args.log,'already exists!')
 
     # Train model
-    train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, log_dir=args.log, verbose=args.verbose)
     evaluate(model, device, dataset=args.dataset, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 

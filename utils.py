@@ -400,14 +400,14 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
     def objective(trial):
 
         # Get parameter suggestions for trial
-        batch_size = trial.suggest_int("batch_size",args.batch[0],args.batch[1]) if args.batch[0] != args.batch[1] else args.batch[0]
-        nlayers = trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1]) if args.nlayers[0] != args.nlayers[1] else args.nlayers[0]
-        nmlp  = trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1]) if args.nmlp[0] != args.nmlp[1] else args.nmlp[0]
-        hdim  = trial.suggest_int("hdim",args.hdim[0],args.hdim[1]) if args.hdim[0] != args.hdim[1] else args.hdim[0]
-        do    = trial.suggest_float("do",args.dropout[0],args.dropout[1]) if args.dropout[0] != args.dropout[1] else args.dropout[0]
-        lr    = trial.suggest_float("lr",args.lr[0],args.lr[1],log=True) if args.lr[0] != args.lr[1] else args.lr[0]
-        step  = trial.suggest_int("step",args.step[0],args.step[1]) if args.step[0] != args.step[1] else args.step[0]
-        gamma = trial.suggest_float("gamma",args.gamma[0],args.gamma[1]) if args.gamma[0] != args.gamma[1] else args.gamma[0]
+        batch_size = args.batch[0] if args.batch[0] != args.batch[1] else trial.suggest_int("batch_size",args.batch[0],args.batch[1]) 
+        nlayers = args.nlayers[0] if args.nlayers[0] != args.nlayers[1] else trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1])
+        nmlp  = args.nmlp[0] if args.nmlp[0] != args.nmlp[1] else trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1])
+        hdim  = args.hdim[0] if args.hdim[0] != args.hdim[1] else trial.suggest_int("hdim",args.hdim[0],args.hdim[1])
+        do    = args.do[0] if args.do[0] != args.do[1] else trial.suggest_float("do",args.dropout[0],args.dropout[1])
+        lr    = args.lr[0] if args.lr[0] != args.lr[1] else trial.suggest_float("lr",args.lr[0],args.lr[1],log=True)
+        step  = args.step[0] if args.step[0] != args.step[1] else trial.suggest_int("step",args.step[0],args.step[1])
+        gamma = args.gamma[0] if args.gamma[0] != args.gamma[1] else trial.suggest_float("gamma",args.gamma[0],args.gamma[1])
         max_epochs = args.epochs
 
         # Setup data and model

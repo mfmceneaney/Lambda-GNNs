@@ -586,7 +586,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         trainer.run(train_loader, max_epochs=max_epochs)
         tb_logger.close() #IMPORTANT!
         if save_path!="":
-            torch.save(model.state_dict(), os.path.join(trialdir,save_path+args.study_name+'_'+trial.number)) #TODO: Make unique identifier by trial?
+            torch.save(model.state_dict(), os.path.join(trialdir,save_path+args.study_name+'_'+str(trial.number))) #TODO: Make unique identifier by trial?
 
         # Create training/validation loss plot
         f = plt.figure()

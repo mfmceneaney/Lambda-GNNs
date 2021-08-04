@@ -507,6 +507,17 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         pruning_handler = optuna.integration.PyTorchIgnitePruningHandler(trial, "accuracy", evaluator) #ORIGINALLY TRAINER
         evaluator.add_event_handler(Events.COMPLETED, pruning_handler)
 
+        ############################################################################################
+        # ADDED EARLY STOPPING
+        def score_function(engine):
+            val_loss = engine.state.metrics['loss']
+            return -val_loss
+
+        handler = EarlyStopping(patience=args.patience, min_delta=args.min_delta, cumulative_delta=args.cumulative_delta, score_function=score_function, trainer=trainer)
+        # Note: the handler is attached to an *Evaluator* (runs one epoch on validation dataset).
+        evaluator.add_event_handler(Events.COMPLETED, handler)
+        ############################################################################################
+
         @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
         def log_training_loss(trainer):
             if verbose: print(f"\rEpoch[{trainer.state.epoch}/{max_epochs} : " +

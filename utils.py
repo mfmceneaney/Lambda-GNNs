@@ -390,7 +390,7 @@ def evaluate(model,device,dataset="ldata_6_22",log_dir="logs/",verbose=True):
     plt.ylabel('counts')
     f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
 
-def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
+def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True,sql=None):
     #NOTE: As of right now log_dir='logs/' should end with the slash
 
     # Load validation data
@@ -740,6 +740,8 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
     sampler = TPESampler() #TODO: Add command line option for selecting different sampler types.
     study = optuna.create_study(sampler=sampler,direction="maximize", pruner=pruner)
+    if args.db_path is not None:
+        study = optuna.load_study(study_name=args.study_name, storage='sqlite:///'+args.db_path)
     study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
     trial = study.best_trial
 

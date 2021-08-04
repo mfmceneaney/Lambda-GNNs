@@ -75,6 +75,12 @@ def main():
     parser.add_argument('--patience', type=int, default=10,
                         help='Number of epochs to wait for early stopping (default: 10)')
 
+    # Distributed training options
+    parser.add_argument('--study_name', type=str, default='distributed-study',
+                        help='Name for distributed study (default: distributed-study)')
+    parser.add_argument('--db_path', type=str, default=None,
+                        help='Path to sqlite database for distributed study (default: None)')
+
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -86,6 +92,9 @@ def main():
     # Setup log directory
     try: os.mkdir(args.log)
     except FileExistsError: print('Directory:',args.log,'already exists!')
+
+    try: os.system('optuna create-study --skip-if-exists --study-name "'+args.study_name+'" --storage "sqlite:///'+args.db_path+'"')
+    except Exception: print('Could not create database for distributed optimization')
 
     # Run optimization study
     optimization_study(args)

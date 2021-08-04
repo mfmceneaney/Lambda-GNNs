@@ -40,10 +40,12 @@ def main():
                         help='Number of epochs to train (default: 100)')
     parser.add_argument('--lr', type=float, default=1e-3,
                         help='Learning rate (default: 1e-3)')
-    parser.add_argument('--step', type=int, default=10,
-                        help='Learning rate step size (default: 20)')
+    parser.add_argument('--step', type=int, default=0,
+                        help='Learning rate step size (default: 0)')
     parser.add_argument('--gamma', type=float, default=0.1,
                         help='Learning rate reduction factor (default: 0.63)')
+    parser.add_argument('--thresh', type=float, default=1e-4,
+                        help='Minimum change threshold for reducing lr on plateau (default: 1e-4)')
     parser.add_argument('--nlayers', type=int, default=2,
                         help='Number of model layers (default: 3)')
     parser.add_argument('--nmlp', type=int, default=3,
@@ -101,7 +103,11 @@ def main():
             args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma)
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.gamma, patience=args.patience,
+    # threshold=args.thresh, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=False)
+    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, args.gamma, last_epoch=-1, verbose=False)
+    if args.step>0:
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma)
     criterion = nn.CrossEntropyLoss()
 
     # Setup log directory

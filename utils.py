@@ -400,14 +400,14 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
     def objective(trial):
 
         # Get parameter suggestions for trial
-        batch_size = trial.suggest_int("batch_size",args.batch[0],args.batch[1])
-        nlayers = trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1])
-        nmlp  = trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1])
-        hdim  = trial.suggest_int("hdim",args.hdim[0],args.hdim[1])
-        do    = trial.suggest_float("do",args.dropout[0],args.dropout[1])
-        lr    = trial.suggest_float("lr",args.lr[0],args.lr[1],log=True)#TODO: Not sure about log yet...
-        step  = trial.suggest_int("step",args.step[0],args.step[1])
-        gamma = trial.suggest_float("gamma",args.gamma[0],args.gamma[1])
+        batch_size = trial.suggest_int("batch_size",args.batch[0],args.batch[1]) if args.batch[0] != args.batch[1] else args.batch[0]
+        nlayers = trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1]) if args.nlayers[0] != args.nlayers[1] else args.nlayers[0]
+        nmlp  = trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1]) if args.nmlp[0] != args.nmlp[1] else args.nmlp[0]
+        hdim  = trial.suggest_int("hdim",args.hdim[0],args.hdim[1]) if args.hdim[0] != args.hdim[1] else args.hdim[0]
+        do    = trial.suggest_float("do",args.dropout[0],args.dropout[1]) if args.dropout[0] != args.dropout[1] else args.dropout[0]
+        lr    = trial.suggest_float("lr",args.lr[0],args.lr[1],log=True) if args.lr[0] != args.lr[1] else args.lr[0]
+        step  = trial.suggest_int("step",args.step[0],args.step[1]) if args.step[0] != args.step[1] else args.step[0]
+        gamma = trial.suggest_float("gamma",args.gamma[0],args.gamma[1]) if args.gamma[0] != args.gamma[1] else args.gamma[0]
         max_epochs = args.epochs
 
         # Setup data and model
@@ -421,7 +421,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         criterion = nn.CrossEntropyLoss()
 
         # Make sure log/save directories exist
-        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+str(trial.datetime_start)
+        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'args.study_name+'_'+str(trial.number)
         try:
             os.mkdir(args.log+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
         except FileExistsError:
@@ -507,8 +507,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         pruning_handler = optuna.integration.PyTorchIgnitePruningHandler(trial, "accuracy", evaluator) #ORIGINALLY TRAINER
         evaluator.add_event_handler(Events.COMPLETED, pruning_handler)
 
-        ############################################################################################
-        # ADDED EARLY STOPPING
+        # Add early stopping
         def score_function(engine):
             val_loss = engine.state.metrics['loss']
             return -val_loss
@@ -516,7 +515,6 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         handler = EarlyStopping(patience=args.patience, min_delta=args.min_delta, cumulative_delta=args.cumulative_delta, score_function=score_function, trainer=trainer)
         # Note: the handler is attached to an *Evaluator* (runs one epoch on validation dataset).
         evaluator.add_event_handler(Events.COMPLETED, handler)
-        ############################################################################################
 
         @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
         def log_training_loss(trainer):
@@ -588,7 +586,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         trainer.run(train_loader, max_epochs=max_epochs)
         tb_logger.close() #IMPORTANT!
         if save_path!="":
-            torch.save(model.state_dict(), save_path)#TODO: Make unique identifier by trial?
+            torch.save(model.state_dict(), os.path.join(trialdir,save_path+args.study_name+'_'+trial.number)) #TODO: Make unique identifier by trial?
 
         # Create training/validation loss plot
         f = plt.figure()
@@ -727,7 +725,6 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         plt.legend([model.name+f": AUC={auc:.4f}"],loc='lower left', frameon=False)
         f.savefig(os.path.join(trialdir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+args.dataset+".png"))
 
-        ##########################################################
         # Plot testing decisions
         bins = 100
         low = min(np.min(p) for p in probs_Y[:,1].detach().numpy())
@@ -741,18 +738,17 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         plt.ylabel('counts')
         f.savefig(os.path.join(trialdir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+args.dataset+".png"))
 
-        # CLOSE FIGURES: IMPORTANT FOR MEMORY
+        # Close figures: #NOTE: Important for memory!
         plt.close('all')
 
         return test_acc
 
     ##### MAIN PART #####
-
     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
     sampler = TPESampler() #TODO: Add command line option for selecting different sampler types.
     study = optuna.create_study(sampler=sampler,direction="maximize", pruner=pruner)
     if args.db_path is not None:
-        study = optuna.load_study(study_name=args.study_name, storage='sqlite:///'+args.db_path)
+        study = optuna.load_study(study_name=args.study_name, storage='sqlite:///'+args.db_path) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
     study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
     trial = study.best_trial
 
@@ -765,7 +761,6 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
             print("    {}: {}".format(key, value))
 
 # Define dataset class
-
 class LambdasDataset(DGLDataset):
     _url = None
     _sha1_str = None

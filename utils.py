@@ -40,9 +40,10 @@ import datetime, os
 # Local Imports
 from models import GIN, HeteroGIN
 
-def load_graph_dataset(dataset="ldata_6_22",batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
+def load_graph_dataset(dataset="ldata_6_22",prefix="",batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
+
     # Load training data
-    train_dataset = LambdasDataset(dataset+"_train") # Make sure this is copied into ~/.dgl folder
+    train_dataset = LambdasDataset(prefix+dataset+"_train") # Make sure this is copied into ~/.dgl folder
     train_dataset.load()
     num_labels = train_dataset.num_labels
     node_feature_dim = train_dataset.graphs[0].ndata["data"].shape[-1]
@@ -57,7 +58,7 @@ def load_graph_dataset(dataset="ldata_6_22",batch_size=1024,drop_last=False,shuf
         num_workers=num_workers)
 
     # Load validation data
-    val_dataset = LambdasDataset(dataset+"_test") # Make sure this is copied into ~/.dgl folder
+    val_dataset = LambdasDataset(prefix+dataset+"_test") # Make sure this is copied into ~/.dgl folder
     val_dataset.load()
 
     # Create testing dataloader
@@ -72,7 +73,7 @@ def load_graph_dataset(dataset="ldata_6_22",batch_size=1024,drop_last=False,shuf
     return train_loader, val_loader, num_labels, node_feature_dim    
 
 def train(args, model, device, train_loader, val_loader, optimizer, scheduler, criterion, max_epochs,
-            dataset="ldata_6_22", log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
+            dataset="ldata_6_22", prefix="", log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
 
     # Make sure log/save directories exist
     try:
@@ -260,15 +261,18 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     
     # if verbose: plt.show() #DEBUGGING...for now...
 
-def evaluate(model,device,dataset="ldata_6_22",log_dir="logs/",verbose=True):
+def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbose=True):
     #TODO: Add .to(device) for this method so the argument isn't useless
+
     # Load validation data
-    test_dataset = LambdasDataset(dataset+"_test") # Make sure this is copied into ~/.dgl folder
+    test_dataset = LambdasDataset(prefix+dataset+"_test") # Make sure this is copied into ~/.dgl folder
     test_dataset.load()
 
     model.eval()
     test_bg    = batch(test_dataset.graphs)
     test_Y     = test_dataset.labels[:,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
+    test_bg    = test_bg.to(device)
+    test_Y     = test_Y.to(device)
     prediction = model(test_bg)
     probs_Y    = torch.softmax(prediction, 1)
     argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
@@ -390,11 +394,11 @@ def evaluate(model,device,dataset="ldata_6_22",log_dir="logs/",verbose=True):
     plt.ylabel('counts')
     f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
 
-def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True,sql=None):
+def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
     #NOTE: As of right now log_dir='logs/' should end with the slash
 
     # Load validation data
-    test_dataset = LambdasDataset(args.dataset+"_test") # Make sure this is copied into ~/.dgl folder
+    test_dataset = LambdasDataset(args.prefix+args.dataset+"_test")
     test_dataset.load()
 
     def objective(trial):

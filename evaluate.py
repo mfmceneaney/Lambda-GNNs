@@ -63,6 +63,10 @@ def main():
     parser.add_argument('--path', type=str, default='torch_models',
                         help='Log directory for histograms (default: torch_models)')
 
+    # Input dataset directory prefix option
+    parser.add_argument('--prefix', type=str, default='~/.dgl/',
+                        help='Prefix for where dataset is stored (default: ~/.dgl/)')
+
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -72,7 +76,7 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     # Setup data and model
-    train_dataloader, val_dataloader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset,
+    train_dataloader, val_dataloader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, prefix=args.prefix,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
     model = GIN(args.nlayers, args.nmlp, nfeatures,
@@ -93,7 +97,7 @@ def main():
     except FileExistsError: print('Directory:',args.log,'already exists!')
 
     # Train model
-    evaluate(model, device, dataset=args.dataset, log_dir=args.log, verbose=args.verbose)
+    evaluate(model, device, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
 if __name__ == '__main__':

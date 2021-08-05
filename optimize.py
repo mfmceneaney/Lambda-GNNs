@@ -18,7 +18,7 @@ import torch.optim as optim
 import argparse, math, datetime, os, psutil, threading
 
 # Custom Imports
-from utils import LambdasDataset, train, load_graph_dataset, optimization_study
+from utils import LambdasDataset, optimization_study
 from models import GIN
 
 def main():
@@ -80,6 +80,10 @@ def main():
                         help='Name for distributed study (default: distributed-study)')
     parser.add_argument('--db_path', type=str, default=None,
                         help='Path to sqlite database for distributed study (default: None)')
+
+    # Input dataset directory prefix option
+    parser.add_argument('--prefix', type=str, default='~/.dgl/',
+                        help='Prefix for where dataset is stored (default: ~/.dgl/)')
 
     args = parser.parse_args()
 

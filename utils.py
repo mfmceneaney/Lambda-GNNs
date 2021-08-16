@@ -175,11 +175,7 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def stepLR(trainer):
-        prev_lr = scheduler.get_last_lr()
         scheduler.step()
-        new_lr = scheduler.get_last_lr()
-        if prev_lr != new_lr and verbose:
-            print(f"\nLearning rate: {prev_lr[0]:.4f} -> {new_lr[0]:.4f}",end="")
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_training_results(trainer):
@@ -552,11 +548,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
 
         @trainer.on(Events.EPOCH_COMPLETED)
         def stepLR(trainer):
-            prev_lr = scheduler.get_last_lr()
             scheduler.step()
-            new_lr = scheduler.get_last_lr()
-            if prev_lr != new_lr and verbose:
-                print(f"\nLearning rate: {prev_lr[0]:.4f} -> {new_lr[0]:.4f}",end="")
 
         @trainer.on(Events.EPOCH_COMPLETED)
         def log_training_results(trainer):

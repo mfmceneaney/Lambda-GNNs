@@ -350,6 +350,30 @@ def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbo
     plt.xlabel('Invariant mass (GeV)')
     f.savefig(os.path.join(log_dir,'mc_matched_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
 
+    # Plot MC-Matched distributions for NN-identified signal
+    bins = 100
+    low_high = (1.1,1.13)
+    f = plt.figure()
+    plt.title('NN-identified signal mass distribution MC-matched')
+    plt.hist(mass_sig_true[~mass_sig_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+    plt.hist(mass_sig_false[~mass_sig_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('Invariant mass (GeV)')
+    f.savefig(os.path.join(log_dir,'mc_matched_nn_sig_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    # Plot MC-Matched distributions for NN-identified background
+    bins = 100
+    low_high = (1.1,1.13)
+    f = plt.figure()
+    plt.title('NN-identified bg mass distribution MC-matched')
+    plt.hist(mass_bg_true[~mass_bg_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+    plt.hist(mass_bg_false[~mass_bg_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('Invariant mass (GeV)')
+    f.savefig(os.path.join(log_dir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
     # Get ROC curve
     pfn_fp, pfn_tp, threshs = roc_curve(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
 
@@ -698,6 +722,31 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         plt.ylabel('Counts')
         plt.xlabel('Invariant mass (GeV)')
         f.savefig(os.path.join(trialdir,'mc_matched_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
+
+        # Plot MC-Matched distributions for NN-identified signal
+        bins = 100
+        low_high = (1.1,1.13)
+        f = plt.figure()
+        plt.title('NN-identified signal mass distribution MC-matched')
+        plt.hist(mass_sig_true[~mass_sig_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+        plt.hist(mass_sig_false[~mass_sig_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+        plt.legend(loc='upper left', frameon=False)
+        plt.ylabel('Counts')
+        plt.xlabel('Invariant mass (GeV)')
+        f.savefig(os.path.join(trialdir,'mc_matched_nn_sig_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
+
+        # Plot MC-Matched distributions for NN-identified background
+        bins = 100
+        low_high = (1.1,1.13)
+        f = plt.figure()
+        plt.title('NN-identified bg mass distribution MC-matched')
+        plt.hist(mass_bg_true[~mass_bg_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+        plt.hist(mass_bg_false[~mass_bg_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+        plt.legend(loc='upper left', frameon=False)
+        plt.ylabel('Counts')
+        plt.xlabel('Invariant mass (GeV)')
+        f.savefig(os.path.join(trialdir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
+
 
         # Get ROC curve
         pfn_fp, pfn_tp, threshs = roc_curve(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())

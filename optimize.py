@@ -82,7 +82,7 @@ def main():
                         help='Path to sqlite database for distributed study (default: None)')
 
     # Input dataset directory prefix option
-    parser.add_argument('--prefix', type=str, default='~/.dgl/',
+    parser.add_argument('--prefix', type=str, default='',
                         help='Prefix for where dataset is stored (default: ~/.dgl/)')
 
     args = parser.parse_args()

@@ -265,6 +265,7 @@ def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbo
     test_dataset.load()
 
     model.eval()
+    model      = model.to(device)
     test_bg    = batch(test_dataset.graphs)
     test_Y     = test_dataset.labels[:,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
     test_bg    = test_bg.to(device)
@@ -804,6 +805,57 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         print("  Params: ")
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
+
+def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbose=True):
+    #TODO: Add .to(device) for this method so the argument isn't useless
+
+    # Load validation data
+    test_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    test_dataset.load()
+
+    model.eval()
+    model      = model.to(device)
+    test_bg    = batch(test_dataset.graphs)
+    test_bg    = test_bg.to(device)
+    prediction = model(test_bg)
+    probs_Y    = torch.softmax(prediction, 1)
+    argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
+
+    # Copy arrays back to CPU
+    test_Y   = test_Y.cpu()
+    probs_Y  = probs_Y.cpu()
+    argmax_Y = argmax_Y.cpu()
+
+    # Get separated mass distributions
+    mass_Y    = ma.array(test_dataset.labels[:,0].clone().detach().float(),mask=~(argmax_Y == 1))
+    mass_bg_Y     = ma.array(test_dataset.labels[:,0].clone().detach().float(),mask=~(argmax_Y == 0))
+
+    # Plot mass decisions separated into signal/background
+    bins = 100
+    low_high = (1.1,1.13)
+    f = plt.figure()
+    plt.title('Separated mass distribution')
+    plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+    plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('Invariant mass (GeV)')
+    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    ##########################################################
+    # Plot testing decisions
+    bins = 100
+    low = min(np.min(p) for p in probs_Y[:,1].detach().numpy())
+    high = max(np.max(p) for p in probs_Y[:,0].detach().numpy())
+    low_high = (low,high)
+    f = plt.figure()
+    plt.clf()
+    plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
+    plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
+    plt.xlabel('output')
+    plt.ylabel('counts')
+    f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
+
 
 # Define dataset class
 class LambdasDataset(DGLDataset):

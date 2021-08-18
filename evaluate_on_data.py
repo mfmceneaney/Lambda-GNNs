@@ -18,7 +18,7 @@ import torch
 import argparse, os
 
 # Custom Imports
-from utils import load_graph_dataset, evaluate, get_graph_dataset_info
+from utils import get_graph_dataset_info, evaluate_on_data
 from models import GIN, HeteroGIN
 
 def main():
@@ -33,8 +33,8 @@ def main():
                         help='Number of dataloader workers (default: 0)')
     parser.add_argument('--batch', type=int, default=256,
                         help='input batch size for training (default: 256)')
-    parser.add_argument('--nlayers', type=int, default=3,
-                        help='Number of model layers (default: 3)')
+    parser.add_argument('--nlayers', type=int, default=2,
+                        help='Number of model layers (default: 2)')
     parser.add_argument('--nmlp', type=int, default=3,
                         help='Number of output MLP layers (default: 3)')
     parser.add_argument('--hdim', type=int, default=64,

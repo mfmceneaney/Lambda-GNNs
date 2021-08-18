@@ -47,7 +47,7 @@ def main():
     parser.add_argument('--thresh', type=float, default=1e-4,
                         help='Minimum change threshold for reducing lr on plateau (default: 1e-4)')
     parser.add_argument('--nlayers', type=int, default=2,
-                        help='Number of model layers (default: 3)')
+                        help='Number of model layers (default: 2)')
     parser.add_argument('--nmlp', type=int, default=3,
                         help='Number of output MLP layers (default: 3)')
     parser.add_argument('--hdim', type=int, default=64,

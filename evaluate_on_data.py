@@ -76,6 +76,9 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     # Setup data and model
+    train_dataloader, val_dataloader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, prefix=args.prefix,
+                                                    num_workers=args.nworkers, batch_size=args.batch)
+                                                    
     model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)

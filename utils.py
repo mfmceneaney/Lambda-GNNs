@@ -40,6 +40,16 @@ import datetime, os
 # Local Imports
 from models import GIN, HeteroGIN
 
+def get_graph_dataset_info(dataset="ldata_6_22",prefix="",batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
+
+    # Load training data
+    train_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    train_dataset.load()
+    num_labels = train_dataset.num_labels
+    node_feature_dim = train_dataset.graphs[0].ndata["data"].shape[-1]
+
+    return num_labels, node_feature_dim
+
 def load_graph_dataset(dataset="ldata_6_22",prefix="",batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
 
     # Load training data

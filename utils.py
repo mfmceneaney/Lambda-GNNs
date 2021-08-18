@@ -832,7 +832,6 @@ def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", log_dir="logs
     argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
 
     # Copy arrays back to CPU
-    test_Y   = test_Y.cpu()
     probs_Y  = probs_Y.cpu()
     argmax_Y = argmax_Y.cpu()
 

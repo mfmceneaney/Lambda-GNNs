@@ -841,7 +841,7 @@ def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", log_dir="logs
 
     # Plot mass decisions separated into signal/background
     bins = 100
-    low_high = (1.1,1.13)
+    low_high = (1.08,1.24) #(1.1,1.13)
     f = plt.figure()
     plt.title('Separated mass distribution')
     plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')

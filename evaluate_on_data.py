@@ -1,6 +1,6 @@
 ###############################
 # Matthew McEneaney
-# 7/28/21
+# 8/18/21
 ###############################
 
 from __future__ import absolute_import, division, print_function
@@ -18,7 +18,7 @@ import torch
 import argparse, os
 
 # Custom Imports
-from utils import load_graph_dataset, evaluate
+from utils import get_graph_dataset_info, evaluate_on_data
 from models import GIN, HeteroGIN
 
 def main():
@@ -33,8 +33,8 @@ def main():
                         help='Number of dataloader workers (default: 0)')
     parser.add_argument('--batch', type=int, default=256,
                         help='input batch size for training (default: 256)')
-    parser.add_argument('--nlayers', type=int, default=3,
-                        help='Number of model layers (default: 3)')
+    parser.add_argument('--nlayers', type=int, default=2,
+                        help='Number of model layers (default: 2)')
     parser.add_argument('--nmlp', type=int, default=3,
                         help='Number of output MLP layers (default: 3)')
     parser.add_argument('--hdim', type=int, default=64,
@@ -67,10 +67,6 @@ def main():
     parser.add_argument('--prefix', type=str, default='',
                         help='Prefix for where dataset is stored (default: ~/.dgl/)')
 
-    # Background scaling option
-    parser.add_argument('--epsilon', type=float, default=3.83,
-                        help='Background scaling ratio for MC results (default: 3.83)')
-
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -80,7 +76,7 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     # Setup data and model
-    train_dataloader, val_dataloader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, prefix=args.prefix,
+    nclasses, nfeatures = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
     model = GIN(args.nlayers, args.nmlp, nfeatures,
@@ -101,7 +97,7 @@ def main():
     except FileExistsError: print('Directory:',args.log,'already exists!')
 
     # Train model
-    evaluate(model, device, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose, epsilon=args.epsilon)
+    evaluate_on_data(model, device, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
 if __name__ == '__main__':

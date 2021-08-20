@@ -43,7 +43,7 @@ def main():
     parser.add_argument('--step', type=int, default=-1,
                         help='Learning rate step size (default: -1 for ReduceLROnPlateau, 0 uses ExponentialLR)')
     parser.add_argument('--gamma', type=float, default=0.1,
-                        help='Learning rate reduction factor (default: 0.63)')
+                        help='Learning rate reduction factor (default: 0.1)')
     parser.add_argument('--thresh', type=float, default=1e-4,
                         help='Minimum change threshold for reducing lr on plateau (default: 1e-4)')
     parser.add_argument('--nlayers', type=int, default=2,

@@ -298,20 +298,15 @@ def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbo
     mass_sig_MC   = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 1))
     mass_bg_MC    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 0))
 
-    (counts, newhist) = np.histogram(arr, bins=bins)
-    (counts2, newhist2) = np.histogram(arr2, bins=bins)
-    plt.hist(newhist[:-1], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-    plt.hist(newhist2[:-1], weights=epsilon*counts, color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
-
     # Plot mass decisions separated into signal/background
     bins = 100
     low_high = (1.1,1.13)
     f = plt.figure()
     plt.title(f'Separated mass distribution ep={epsilon:.2}')
-    (counts, newhist) = np.histogram(mass_sig_Y[~mass_sig_Y.mask], bins=bins)
-    (counts2, newhist2) = np.histogram(mass_bg_Y[~mass_bg_Y.mask], bins=bins)
-    plt.hist(newhist[:-1], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-    plt.hist(newhist2[:-1], weights=epsilon*counts, color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    (counts, hist) = np.histogram(mass_sig_Y[~mass_sig_Y.mask], bins=bins, range=low_high)
+    (counts2, hist2) = np.histogram(mass_bg_Y[~mass_bg_Y.mask], bins=bins, range=low_high)
+    plt.hist([hist[:-1],hist2[:-1]], color=['r','b'], label=['signal','background'], weights =[counts,epsilon*counts],
+             alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False)
 
     # plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
     # plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
@@ -325,10 +320,10 @@ def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbo
     low_high = (1.1,1.13)
     f = plt.figure()
     plt.title(f'Separated mass distribution (true) ep={epsilon:.2f}')
-    (counts, newhist) = np.histogram(mass_sig_true[~mass_sig_true.mask], bins=bins)
-    (counts2, newhist2) = np.histogram(mass_bg_true[~mass_bg_true.mask], bins=bins)
-    plt.hist(newhist[:-1], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-    plt.hist(newhist2[:-1], weights=epsilon*counts, color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    (counts, hist) = np.histogram(mass_sig_true[~mass_sig_true.mask], bins=bins, range=low_high)
+    (counts2, hist2) = np.histogram(mass_bg_true[~mass_bg_true.mask], bins=bins, range=low_high)
+    plt.hist([hist[:-1],hist2[:-1]], color=['r','b'], label=['signal','background'], weights =[counts,epsilon*counts],
+             alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False)
 
     # plt.hist(mass_sig_true[~mass_sig_true.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
     # plt.hist(mass_bg_true[~mass_bg_true.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
@@ -342,10 +337,10 @@ def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbo
     low_high = (1.1,1.13)
     f = plt.figure()
     plt.title(f'Separated mass distribution (false) ep={epsilon:.2f}')
-    (counts, newhist) = np.histogram(mass_sig_false[~mass_sig_false.mask], bins=bins)
-    (counts2, newhist2) = np.histogram(mass_bg_false[~mass_bg_false.mask], bins=bins)
-    plt.hist(newhist[:-1], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-    plt.hist(newhist2[:-1], weights=epsilon*counts, color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    (counts, hist) = np.histogram(mass_sig_false[~mass_sig_false.mask], bins=bins, range=low_high)
+    (counts2, hist2) = np.histogram(mass_bg_false[~mass_bg_false.mask], bins=bins, range=low_high)
+    plt.hist([hist[:-1],hist2[:-1]], color=['r','b'], label=['signal','background'], weights =[counts,epsilon*counts],
+             alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False)
 
     # plt.hist(mass_sig_false[~mass_sig_false.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
     # plt.hist(mass_bg_false[~mass_bg_false.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
@@ -359,10 +354,10 @@ def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbo
     low_high = (1.1,1.13)
     f = plt.figure()
     plt.title(f'Separated mass distribution MC-matched ep={epsilon:.2f}')
-    (counts, newhist) = np.histogram(mass_sig_MC[~mass_sig_MC.mask], bins=bins)
-    (counts2, newhist2) = np.histogram(mass_bg_MC[~mass_bg_MC.mask], bins=bins)
-    plt.hist(newhist[:-1], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-    plt.hist(newhist2[:-1], weights=epsilon*counts, color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    (counts, hist) = np.histogram(mass_sig_MC[~mass_sig_MC.mask], bins=bins, range=low_high)
+    (counts2, hist2) = np.histogram(mass_bg_MC[~mass_bg_MC.mask], bins=bins, range=low_high)
+    plt.hist([hist[:-1],hist2[:-1]], color=['r','b'], label=['signal','background'], weights =[counts,epsilon*counts],
+             alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False)
 
     # plt.hist(mass_sig_MC[~mass_sig_MC.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
     # plt.hist(mass_bg_MC[~mass_bg_MC.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
@@ -376,10 +371,10 @@ def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbo
     low_high = (1.1,1.13)
     f = plt.figure()
     plt.title(f'NN-identified signal mass distribution MC-matched ep={epsilon:.2f}')
-    (counts, newhist) = np.histogram(mass_sig_true[~mass_sig_true.mask], bins=bins)
-    (counts2, newhist2) = np.histogram(mass_sig_false[~mass_sig_false.mask], bins=bins)
-    plt.hist(newhist[:-1], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-    plt.hist(newhist2[:-1], weights=epsilon*counts, color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    (counts, hist) = np.histogram(mass_sig_true[~mass_sig_true.mask], bins=bins, range=low_high)
+    (counts2, hist2) = np.histogram(mass_sig_false[~mass_sig_false.mask], bins=bins, range=low_high)
+    plt.hist([hist[:-1],hist2[:-1]], color=['m','c'], label=['true','false'], weights =[counts,epsilon*counts],
+             alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False)
 
     # plt.hist(mass_sig_true[~mass_sig_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
     # plt.hist(mass_sig_false[~mass_sig_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
@@ -393,10 +388,10 @@ def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbo
     low_high = (1.1,1.13)
     f = plt.figure()
     plt.title(f'NN-identified bg mass distribution MC-matched ep={epsilon:.2f}')
-    (counts, newhist) = np.histogram(mass_bg_true[~mass_bg_true.mask], bins=bins)
-    (counts2, newhist2) = np.histogram(mass_bg_false[~mass_bg_false.mask], bins=bins)
-    plt.hist(newhist[:-1], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-    plt.hist(newhist2[:-1], weights=epsilon*counts, color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    (counts, hist) = np.histogram(mass_bg_true[~mass_bg_true.mask], bins=bins, range=low_high)
+    (counts2, hist2) = np.histogram(mass_bg_false[~mass_bg_false.mask], bins=bins, range=low_high)
+    plt.hist([hist[:-1],hist2[:-1]], color=['m','c'], label=['true','false'], weights =[counts,epsilon*counts],
+             alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False)
 
     # plt.hist(mass_bg_true[~mass_bg_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
     # plt.hist(mass_bg_false[~mass_bg_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')

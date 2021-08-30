@@ -34,6 +34,10 @@ from ignite.handlers import global_step_from_engine, EarlyStopping
 import optuna
 from optuna.samplers import TPESampler
 
+# Fitting imports
+import scipy.optimize as opt
+from scipy.stats import crystalball
+
 # Utility Imports
 import datetime, os
 
@@ -839,12 +843,53 @@ def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", log_dir="logs
     mass_sig_Y    = ma.array(test_dataset.labels[:,0].clone().detach().float(),mask=~(argmax_Y == 1))
     mass_bg_Y     = ma.array(test_dataset.labels[:,0].clone().detach().float(),mask=~(argmax_Y == 0))
 
+    ##################################################
+    # Define fit function
+    def func(x, N, beta, m, loc, scale, A, B, C):
+        return N*crystalball.pdf(-x, beta, m, -loc, scale) + A*(1 - B*(x - C)**2)
+        
+    def sig(x, N, beta, m, loc, scale):
+        return N*crystalball.pdf(-x, beta, m, -loc, scale)
+        
+    def bg(x, A, B, C):
+        return A*(1 - B*(x - C)**2)
+    ##################################################
+
     # Plot mass decisions separated into signal/background
     bins = 100
     low_high = (1.08,1.24) #(1.1,1.13)
-    f = plt.figure()
+    f = plt.figure(figsize=(16,10))
     plt.title('Separated mass distribution')
-    plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+    hdata = plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+    
+    # Fit output of NN
+    N, beta, m, loc, scale, A, B, C = 500, 1, 1.112, 1.115, 0.008, hdata[0][-1], 37, 1.24
+    d_N, d_beta, d_m, d_loc, d_scale, d_A, d_B, d_C = N/0.01, beta/0.1, m/0.1, loc/0.1, scale/0.01, A/10, B/0.1, C/0.1
+    parsMin = [N-d_N, beta-d_beta, m-d_m, loc-d_loc, scale-d_scale, A-d_A, B-d_B, C-d_C]
+    parsMax = [N+d_N, beta+d_beta, m+d_m, loc+d_loc, scale+d_scale, A+d_A, B+d_B, C+d_C]
+    optParams, pcov = opt.curve_fit(func, hdata[1][:-1], hdata[0], method='trf', bounds=(parsMin,parsMax))
+
+    # Plot fit
+    x = mass_sig_Y[~mass_sig_Y.mask]
+    y = hdata[0]
+    plt.plot(x, func(x, *optParams), color='r')
+    plt.plot(x, sig(x, *optParams[0:5]), color='tab:purple')
+    plt.plot(x, bg(x, *optParams[5:]), color='b')
+    plt.hist(x, weights=y-bg(x, *optParams[5:]), bins=bins, range=low_high, histtype='step', alpha=0.5, color='b')
+
+    # Setup legend entries for fit info
+    lg = "Fit Info\n-------------------------\n"
+    lg += f"N = {round(optParams[0],0)}±{round(pcov[0,0],5)}\n"
+    lg += f"α = {round(optParams[1],3)}±{round(pcov[1,1],5)}\n"
+    lg += f"n = {round(optParams[2],3)}±{round(pcov[2,2],5)}\n"
+    lg += f"μ = {round(optParams[3],5)}±{round(pcov[3,3],5)}\n"
+    lg += f"σ = {round(optParams[4],5)}±{round(pcov[4,4],5)}\n"
+    lg += f"A = {round(optParams[5],0)}±{round(pcov[5,6],5)}\n"
+    lg += f"β = {round(optParams[6],0)}±{round(pcov[6,6],5)}\n"
+    lg += f"M = {round(optParams[7],2)}±{round(pcov[7,7],5)}\n"
+    plt.text(1.175,20000,lg,fontsize=16,linespacing=1.5)
+
+    # Show the graph
     plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
@@ -864,7 +909,6 @@ def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", log_dir="logs
     plt.xlabel('output')
     plt.ylabel('counts')
     f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
-
 
 # Define dataset class
 class LambdasDataset(DGLDataset):

@@ -67,6 +67,10 @@ def main():
     parser.add_argument('--prefix', type=str, default='',
                         help='Prefix for where dataset is stored (default: ~/.dgl/)')
 
+    # Input dataset train/val split
+    parser.add_argument('--split', type=float, default=0.75,
+                        help='Fraction of dataset to use for evaluation (default: 0.75)')
+
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -74,7 +78,6 @@ def main():
     device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
-    print(device)#DEBUGGING
 
     # Setup data and model
     nclasses, nfeatures = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix,
@@ -98,7 +101,7 @@ def main():
     except FileExistsError: print('Directory:',args.log,'already exists!')
 
     # Train model
-    evaluate_on_data(model, device, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose)
+    evaluate_on_data(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
 if __name__ == '__main__':

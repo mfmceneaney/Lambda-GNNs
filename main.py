@@ -84,6 +84,10 @@ def main():
     parser.add_argument('--prefix', type=str, default='',
                         help='Prefix for where dataset is stored (default: ~/.dgl/)')
 
+    # Input dataset train/val split
+    parser.add_argument('--split', type=float, default=0.75,
+                        help='Fraction of dataset to use for evaluation (default: 0.75)')
+
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -121,7 +125,7 @@ def main():
 
     # Train model
     train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose)
-    evaluate(model, device, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose)
+    evaluate(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
 if __name__ == '__main__':

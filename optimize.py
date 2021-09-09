@@ -85,6 +85,10 @@ def main():
     parser.add_argument('--prefix', type=str, default='',
                         help='Prefix for where dataset is stored (default: ~/.dgl/)')
 
+    # Input dataset train/val split
+    parser.add_argument('--split', type=float, default=0.75,
+                        help='Fraction of dataset to use for evaluation (default: 0.75)')
+
     args = parser.parse_args()
 
     # Set up and seed devices

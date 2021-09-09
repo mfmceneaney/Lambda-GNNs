@@ -22,6 +22,7 @@ from dgl.data.utils import save_info, load_info
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import Subset
 
 # PyTorch Ignite Imports
 from ignite.engine import Engine, Events, EventEnum, create_supervised_trainer, create_supervised_evaluator
@@ -48,16 +49,19 @@ def get_graph_dataset_info(dataset="ldata_6_22",prefix="",batch_size=1024,drop_l
 
     # Load training data
     train_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    train_dataset = Subset(train_dataset,range(1))
     train_dataset.load()
     num_labels = train_dataset.num_labels
     node_feature_dim = train_dataset.graphs[0].ndata["data"].shape[-1]
 
     return num_labels, node_feature_dim
 
-def load_graph_dataset(dataset="ldata_6_22",prefix="",batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
+def load_graph_dataset(dataset="ldata_6_22",prefix="",split=0.75,batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
 
     # Load training data
-    train_dataset = LambdasDataset(prefix+dataset+"_train") # Make sure this is copied into ~/.dgl folder
+    train_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    index = int(len(train_dataset)*split)
+    train_dataset = Subset(train_dataset,range(index))
     train_dataset.load()
     num_labels = train_dataset.num_labels
     node_feature_dim = train_dataset.graphs[0].ndata["data"].shape[-1]
@@ -72,7 +76,8 @@ def load_graph_dataset(dataset="ldata_6_22",prefix="",batch_size=1024,drop_last=
         num_workers=num_workers)
 
     # Load validation data
-    val_dataset = LambdasDataset(prefix+dataset+"_test") # Make sure this is copied into ~/.dgl folder
+    val_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    val_dataset = Subset(train_dataset,range(index,len(val_dataset)))
     val_dataset.load()
 
     # Create testing dataloader
@@ -272,11 +277,12 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     
     # if verbose: plt.show() #DEBUGGING...for now...
 
-def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbose=True):
+def evaluate(model,device,dataset="ldata_6_22", prefix="", split=0.75, log_dir="logs/",verbose=True):
     #TODO: Add .to(device) for this method so the argument isn't useless
 
     # Load validation data
-    test_dataset = LambdasDataset(prefix+dataset+"_test") # Make sure this is copied into ~/.dgl folder
+    test_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    test_dataset = Subset(test_dataset,range(int(len(test_dataset)*split)))
     test_dataset.load()
 
     model.eval()
@@ -341,7 +347,7 @@ def evaluate(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbo
     optParams, pcov = opt.curve_fit(func, hdata[1][:-1], hdata[0], method='trf', bounds=(parsMin,parsMax))
 
     # Plot fit
-    x = x = np.linspace(low_high[0],low_high[1],bins)#mass_sig_Y[~mass_sig_Y.mask]
+    x = np.linspace(low_high[0],low_high[1],bins)#mass_sig_Y[~mass_sig_Y.mask]
     y = hdata[0]
     plt.plot(x, func(x, *optParams), color='r')
     plt.plot(x, sig(x, *optParams[0:5]), color='tab:purple')
@@ -487,7 +493,8 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
     #NOTE: As of right now log_dir='logs/' should end with the slash
 
     # Load validation data
-    test_dataset = LambdasDataset(args.prefix+args.dataset+"_test")
+    test_dataset = LambdasDataset(args.prefix+args.dataset)
+    test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split)))
     test_dataset.load()
 
     def objective(trial):
@@ -504,7 +511,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         max_epochs = args.epochs
 
         # Setup data and model
-        train_loader, val_loader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset,
+        train_loader, val_loader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, split=args.split,
                                                         num_workers=args.nworkers, batch_size=batch_size)
 
         # Initiate model and optimizer, scheduler, loss
@@ -874,11 +881,12 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", log_dir="logs/",verbose=True):
+def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", split=0.75, log_dir="logs/",verbose=True):
     #TODO: Add .to(device) for this method so the argument isn't useless
 
     # Load validation data
     test_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    test_dataset = Subset(test_dataset,range(int(len(test_dataset)*split)))
     test_dataset.load()
 
     model.eval()

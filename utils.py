@@ -50,7 +50,7 @@ def get_graph_dataset_info(dataset="",prefix="",batch_size=1024,drop_last=False,
     # Load training data
     train_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
     train_dataset = Subset(train_dataset,range(1))
-    train_dataset.load()
+    # train_dataset.load()
     num_labels = train_dataset.num_labels
     node_feature_dim = train_dataset.graphs[0].ndata["data"].shape[-1]
 
@@ -62,7 +62,7 @@ def load_graph_dataset(dataset="",prefix="",split=0.75,max_events=1e5,batch_size
     train_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
     index = int(min(len(train_dataset),max_events)*split)
     train_dataset = Subset(train_dataset,range(index))
-    train_dataset.load()
+    # train_dataset.load()
     num_labels = train_dataset.num_labels
     node_feature_dim = train_dataset.graphs[0].ndata["data"].shape[-1]
 
@@ -78,7 +78,7 @@ def load_graph_dataset(dataset="",prefix="",split=0.75,max_events=1e5,batch_size
     # Load validation data
     val_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
     val_dataset = Subset(train_dataset,range(index,len(val_dataset)))
-    val_dataset.load()
+    # val_dataset.load()
 
     # Create testing dataloader
     val_loader = GraphDataLoader(
@@ -284,7 +284,7 @@ def evaluate(model,device,dataset="", prefix="", split=0.75, max_events=1e10, lo
     # Load validation data
     test_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
     test_dataset = Subset(test_dataset,range(int(min(len(test_dataset),max_events)*split)))
-    test_dataset.load()
+    # test_dataset.load()
 
     model.eval()
     model      = model.to(device)
@@ -496,7 +496,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
     # Load validation data
     test_dataset = LambdasDataset(args.prefix+args.dataset)
     test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split)))
-    test_dataset.load()
+    # test_dataset.load()
 
     def objective(trial):
 
@@ -892,7 +892,7 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=0.1, log_dir="log
     # Load validation data
     test_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
     test_dataset = Subset(test_dataset,range(int(len(test_dataset)*split)))
-    test_dataset.load()
+    # test_dataset.load()
 
     model.eval()
     model      = model.to(device)

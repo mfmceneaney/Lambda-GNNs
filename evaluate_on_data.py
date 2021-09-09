@@ -102,7 +102,7 @@ def main():
     except FileExistsError: print('Directory:',args.log,'already exists!')
 
     # Train model
-    evaluate_on_data(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split log_dir=args.log, verbose=args.verbose)
+    evaluate_on_data(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
 if __name__ == '__main__':

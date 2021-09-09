@@ -61,7 +61,7 @@ def main():
 
     # Model load directory
     parser.add_argument('--path', type=str, default='torch_models',
-                        help='Log directory for histograms (default: torch_models)')
+                        help='Model load path (default: torch_models)')
 
     # Input dataset directory prefix option
     parser.add_argument('--prefix', type=str, default='',
@@ -74,6 +74,7 @@ def main():
     device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
+    print(device)#DEBUGGING
 
     # Setup data and model
     nclasses, nfeatures = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix,

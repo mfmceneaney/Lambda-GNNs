@@ -80,8 +80,7 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     # Setup data and model
-    nclasses, nfeatures = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix,
-                                                    split=args.split, max_events=args.max_events,
+    nclasses, nfeatures = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix, split=args.split,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
     model = GIN(args.nlayers, args.nmlp, nfeatures,

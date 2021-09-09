@@ -911,7 +911,7 @@ def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", log_dir="logs
 
     # Plot mass decisions separated into signal/background
     bins = 100
-    low_high = (1.08,1.24) #(1.1,1.13)
+    low_high = (1.1,1.13)
     f = plt.figure(figsize=(16,10))
     plt.title('Separated mass distribution')
     hdata = plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
@@ -924,7 +924,7 @@ def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", log_dir="logs
     optParams, pcov = opt.curve_fit(func, hdata[1][:-1], hdata[0], method='trf', bounds=(parsMin,parsMax))
 
     # Plot fit
-    x = mass_sig_Y[~mass_sig_Y.mask]
+    x = x = np.linspace(low_high[0],low_high[1],bins)#mass_sig_Y[~mass_sig_Y.mask]
     y = hdata[0]
     plt.plot(x, func(x, *optParams), color='r')
     plt.plot(x, sig(x, *optParams[0:5]), color='tab:purple')
@@ -941,7 +941,7 @@ def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", log_dir="logs
     lg += f"A = {round(optParams[5],0)}±{round(pcov[5,6],5)}\n"
     lg += f"β = {round(optParams[6],0)}±{round(pcov[6,6],5)}\n"
     lg += f"M = {round(optParams[7],2)}±{round(pcov[7,7],5)}\n"
-    plt.text(1.175,20000,lg,fontsize=16,linespacing=1.5)
+    plt.text(low_high[1]-(low_high[1]-low_high[0])/3,2/3*max(hdata[0]),lg,fontsize=16,linespacing=1.5)
 
     # Show the graph
     plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')

@@ -45,7 +45,7 @@ import datetime, os
 # Local Imports
 from models import GIN, HeteroGIN
 
-def get_graph_dataset_info(dataset="ldata_6_22",prefix="",batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
+def get_graph_dataset_info(dataset="",prefix="",batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
 
     # Load training data
     train_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
@@ -56,11 +56,11 @@ def get_graph_dataset_info(dataset="ldata_6_22",prefix="",batch_size=1024,drop_l
 
     return num_labels, node_feature_dim
 
-def load_graph_dataset(dataset="ldata_6_22",prefix="",split=0.75,batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
+def load_graph_dataset(dataset="",prefix="",split=0.75,max_events=1e5,batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
 
     # Load training data
     train_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
-    index = int(len(train_dataset)*split)
+    index = int(min(len(train_dataset),max_events)*split)
     train_dataset = Subset(train_dataset,range(index))
     train_dataset.load()
     num_labels = train_dataset.num_labels
@@ -92,7 +92,7 @@ def load_graph_dataset(dataset="ldata_6_22",prefix="",split=0.75,batch_size=1024
     return train_loader, val_loader, num_labels, node_feature_dim    
 
 def train(args, model, device, train_loader, val_loader, optimizer, scheduler, criterion, max_epochs,
-            dataset="ldata_6_22", prefix="", log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
+            dataset="", prefix="", log_interval=10,log_dir="logs/",save_path="logs/model",verbose=True):
 
     # Make sure log/save directories exist
     try:
@@ -102,6 +102,9 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
 
     # Show model if requested
     if verbose: print(model)
+
+    # Instatiate torchscript model to save (for importing model to java/c++)
+    traced_cell = None
 
     # Logs for matplotlib plots
     logs={'train':{'loss':[],'accuracy':[],'roc_auc':[]}, 'val':{'loss':[],'accuracy':[],'roc_auc':[]}}
@@ -118,6 +121,7 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        traced_cell = torch.jit.trace(model, x)
         test_Y = y.clone().detach().float().view(-1, 1) 
         probs_Y = torch.softmax(y_pred, 1)
         argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
@@ -147,7 +151,7 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
         y = label[:,0].clone().detach().long()
         x      = x.to(device)
         y      = y.to(device)
-        y_pred = model(x)#TODO: Modify this so it works with PFN/EFN as well?
+        y_pred = model(x)
         loss   = criterion(y_pred, y)
         optimizer.zero_grad()
         loss.backward()
@@ -249,10 +253,10 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     trainer.run(train_loader, max_epochs=max_epochs)
     tb_logger.close() #IMPORTANT!
     if save_path!="":
-        
-        torch.save(model.to('cpu').state_dict(), save_path)
+        torch.save(model.to('cpu').state_dict(), os.path.join(log_dir,save_path)
+        traced_cell.save(os.path.join(log_dir,save_path+'.zip'))
 
-    # # Create training/validation loss plot
+    # Create training/validation loss plot
     f = plt.figure()
     plt.subplot()
     plt.title('Loss per epoch')
@@ -264,7 +268,7 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     plt.legend()
     f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
 
-    # # Create training/validation accuracy plot
+    # Create training/validation accuracy plot
     f = plt.figure()
     plt.subplot()
     plt.title('Accuracy per epoch')
@@ -275,14 +279,11 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     plt.xlabel('epoch')
     f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
     
-    # if verbose: plt.show() #DEBUGGING...for now...
-
-def evaluate(model,device,dataset="ldata_6_22", prefix="", split=0.75, log_dir="logs/",verbose=True):
-    #TODO: Add .to(device) for this method so the argument isn't useless
+def evaluate(model,device,dataset="", prefix="", split=0.75, max_events=1e10, log_dir="logs/",verbose=True):
 
     # Load validation data
     test_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
-    test_dataset = Subset(test_dataset,range(int(len(test_dataset)*split)))
+    test_dataset = Subset(test_dataset,range(int(min(len(test_dataset),max_events)*split)))
     test_dataset.load()
 
     model.eval()
@@ -511,7 +512,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         max_epochs = args.epochs
 
         # Setup data and model
-        train_loader, val_loader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, split=args.split,
+        train_loader, val_loader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, split=args.split, max_events = args.max_events,
                                                         num_workers=args.nworkers, batch_size=batch_size)
 
         # Initiate model and optimizer, scheduler, loss
@@ -531,6 +532,9 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         # Show model if requested
         if args.verbose: print(model)
 
+        # Instatiate torchscript model to save (for importing model to java/c++)
+        traced_cell = None
+
         # Logs for matplotlib plots
         logs={'train':{'loss':[],'accuracy':[],'roc_auc':[]}, 'val':{'loss':[],'accuracy':[],'roc_auc':[]}}
 
@@ -546,6 +550,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            traced_cell = torch.jit.trace(model, x)
             test_Y = y.clone().detach().float().view(-1, 1) 
             probs_Y = torch.softmax(y_pred, 1)
             argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
@@ -575,7 +580,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
             y = label[:,0].clone().detach().long()
             x      = x.to(args.device)
             y      = y.to(args.device)
-            y_pred = model(x)#TODO: Modify this so it works with PFN/EFN as well?
+            y_pred = model(x)
             loss   = criterion(y_pred, y)
             optimizer.zero_grad()
             loss.backward()
@@ -682,7 +687,8 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         trainer.run(train_loader, max_epochs=max_epochs)
         tb_logger.close() #IMPORTANT!
         if save_path!="":
-            torch.save(model.to('cpu').state_dict(), os.path.join(trialdir,save_path+args.study_name+'_'+str(trial.number))) #TODO: Make unique identifier by trial?
+            torch.save(model.to('cpu').state_dict(),os.path.join(trialdir,save_path+args.study_name+'_'+str(trial.number)))
+            traced_cell.save(os.path.join(trialdir,save_path+args.study_name+'_'+str(trial.number)+'.zip'))
 
         # Create training/validation loss plot
         f = plt.figure()
@@ -881,8 +887,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-def evaluate_on_data(model,device,dataset="ldata_6_22", prefix="", split=0.75, log_dir="logs/",verbose=True):
-    #TODO: Add .to(device) for this method so the argument isn't useless
+def evaluate_on_data(model,device,dataset="", prefix="", split=0.1, log_dir="logs/",verbose=True):
 
     # Load validation data
     test_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder

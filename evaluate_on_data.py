@@ -67,9 +67,9 @@ def main():
     parser.add_argument('--prefix', type=str, default='',
                         help='Prefix for where dataset is stored (default: ~/.dgl/)')
 
-    # Input dataset train/val split
-    parser.add_argument('--split', type=float, default=0.75,
-                        help='Fraction of dataset to use for evaluation (default: 0.75)')
+    # Input dataset evaluation fraction
+    parser.add_argument('--split', type=float, default=0.25,
+                        help='Fraction of dataset to use for evaluation (default: 0.25)')
 
     args = parser.parse_args()
 
@@ -81,6 +81,7 @@ def main():
 
     # Setup data and model
     nclasses, nfeatures = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix,
+                                                    split=args.split, max_events=args.max_events,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
     model = GIN(args.nlayers, args.nmlp, nfeatures,

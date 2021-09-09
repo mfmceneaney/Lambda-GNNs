@@ -68,8 +68,12 @@ def main():
                         help='Prefix for where dataset is stored (default: ~/.dgl/)')
 
     # Input dataset train/val split
-    parser.add_argument('--split', type=float, default=0.75,
-                        help='Fraction of dataset to use for evaluation (default: 0.75)')
+    parser.add_argument('--split', type=float, default=0.1,
+                        help='Fraction of dataset to use for evaluation (default: 0.1)')
+
+    # Input dataset train/val max total events
+    parser.add_argument('--max_events', type=float, default=1e5,
+                        help='Max number of train/val events to use (default: 1e5)')
 
     args = parser.parse_args()
 
@@ -80,8 +84,8 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     # Setup data and model
-    train_dataloader, val_dataloader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, prefix=args.prefix,
-                                                    num_workers=args.nworkers, batch_size=args.batch)
+    nclasses, nfeatures = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix,
+                                            num_workers=args.nworkers, batch_size=args.batch)
 
     model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,

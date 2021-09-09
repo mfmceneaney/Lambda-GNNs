@@ -89,6 +89,10 @@ def main():
     parser.add_argument('--split', type=float, default=0.75,
                         help='Fraction of dataset to use for evaluation (default: 0.75)')
 
+    # Input dataset train/val max total events
+    parser.add_argument('--max_events', type=float, default=1e5,
+                        help='Max number of train/val events to use (default: 1e5)')
+
     args = parser.parse_args()
 
     # Set up and seed devices

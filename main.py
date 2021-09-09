@@ -88,6 +88,10 @@ def main():
     parser.add_argument('--split', type=float, default=0.75,
                         help='Fraction of dataset to use for evaluation (default: 0.75)')
 
+    # Input dataset train/val max total events
+    parser.add_argument('--max_events', type=float, default=1e5,
+                        help='Max number of train/val events to use (default: 1e5)')
+
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -97,7 +101,8 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     # Setup data and model
-    train_dataloader, val_dataloader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, prefix=args.prefix,
+    train_dataloader, val_dataloader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+                                                    split=args.split, max_events=args.max_events,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
     model = GIN(args.nlayers, args.nmlp, nfeatures,
@@ -125,7 +130,7 @@ def main():
 
     # Train model
     train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose)
-    evaluate(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split, log_dir=args.log, verbose=args.verbose)
+    evaluate(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split, max_events=args.max_events, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
 if __name__ == '__main__':

@@ -253,7 +253,7 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     trainer.run(train_loader, max_epochs=max_epochs)
     tb_logger.close() #IMPORTANT!
     if save_path!="":
-        torch.save(model.to('cpu').state_dict(), os.path.join(log_dir,save_path)
+        torch.save(model.to('cpu').state_dict(), os.path.join(log_dir,save_path))
         traced_cell.save(os.path.join(log_dir,save_path+'.zip'))
 
     # Create training/validation loss plot

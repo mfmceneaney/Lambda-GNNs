@@ -53,7 +53,7 @@ def get_graph_dataset_info(dataset="",prefix="",batch_size=1024,drop_last=False,
     node_feature_dim = train_dataset.graphs[0].ndata["data"].shape[-1]
     train_dataset.load()
     train_dataset = Subset(train_dataset,range(1))
-    
+
     return num_labels, node_feature_dim
 
 def load_graph_dataset(dataset="",prefix="",split=0.75,max_events=1e5,batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
@@ -896,7 +896,7 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=0.1, log_dir="log
 
     model.eval()
     model      = model.to(device)
-    test_bg    = batch(test_dataset.graphs)
+    test_bg    = batch(test_dataset)#.graphs
     test_bg    = test_bg.to(device)
     prediction = model(test_bg)
     probs_Y    = torch.softmax(prediction, 1)

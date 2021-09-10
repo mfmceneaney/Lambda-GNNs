@@ -821,7 +821,6 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         plt.xlabel('Invariant mass (GeV)')
         f.savefig(os.path.join(trialdir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
 
-
         # Get ROC curve
         pfn_fp, pfn_tp, threshs = roc_curve(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
 

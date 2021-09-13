@@ -18,7 +18,7 @@ import torch
 import argparse, os
 
 # Custom Imports
-from utils import load_graph_dataset, evaluate
+from utils import load_graph_dataset, evaluate, get_graph_dataset_info
 from models import GIN, HeteroGIN
 
 def main():

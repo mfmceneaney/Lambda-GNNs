@@ -906,8 +906,8 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=0.1, log_dir="log
     argmax_Y = argmax_Y.cpu()
 
     # Get separated mass distributions
-    mass_sig_Y    = ma.array(test_dataset.labels[:,0].clone().detach().float(),mask=~(argmax_Y == 1))
-    mass_bg_Y     = ma.array(test_dataset.labels[:,0].clone().detach().float(),mask=~(argmax_Y == 0))
+    mass_sig_Y    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float(),mask=~(argmax_Y == 1))
+    mass_bg_Y     = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float(),mask=~(argmax_Y == 0))
 
     ##################################################
     # Define fit function

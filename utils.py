@@ -933,10 +933,12 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=0.1, log_dir="log
     d_N, d_beta, d_m, d_loc, d_scale, d_A, d_B, d_C = N/0.01, beta/0.1, m/0.1, loc/0.1, scale/0.01, A/10, B/0.1, C/0.1
     parsMin = [N-d_N, beta-d_beta, m-d_m, loc-d_loc, scale-d_scale, A-d_A, B-d_B, C-d_C]
     parsMax = [N+d_N, beta+d_beta, m+d_m, loc+d_loc, scale+d_scale, A+d_A, B+d_B, C+d_C]
+    print(parsMin)#DEBUGGING
+    print(parsMax)#DEBUGGING
     optParams, pcov = opt.curve_fit(func, hdata[1][:-1], hdata[0], method='trf', bounds=(parsMin,parsMax))
 
     # Plot fit
-    x = x = np.linspace(low_high[0],low_high[1],bins)#mass_sig_Y[~mass_sig_Y.mask]
+    x = np.linspace(low_high[0],low_high[1],bins)#mass_sig_Y[~mass_sig_Y.mask]
     y = hdata[0]
     plt.plot(x, func(x, *optParams), color='r')
     plt.plot(x, sig(x, *optParams[0:5]), color='tab:purple')

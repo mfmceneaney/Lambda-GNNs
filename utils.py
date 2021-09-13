@@ -304,22 +304,22 @@ def evaluate(model,device,dataset="", prefix="", split=0.75, max_events=1e10, lo
     argmax_Y = argmax_Y.cpu()
 
     # Get separated mass distributions
-    mass_sig_Y    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 1))
-    mass_bg_Y     = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 0))
+    mass_sig_Y    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 1))
+    mass_bg_Y     = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 0))
 
     # Get false-positive true-negatives and vice versa
-    mass_sig_true  = ma.array(test_dataset.labels[:,1].clone().detach().float(),
+    mass_sig_true  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
                                 mask=np.logical_or(~(torch.squeeze(argmax_Y) == 1),~(torch.squeeze(argmax_Y) == test_dataset.labels[:,0].clone().detach().float())))
-    mass_bg_true   = ma.array(test_dataset.labels[:,1].clone().detach().float(),
+    mass_bg_true   = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
                                 mask=np.logical_or(~(torch.squeeze(argmax_Y) == 0),~(torch.squeeze(argmax_Y) == test_dataset.labels[:,0].clone().detach().float())))
-    mass_sig_false = ma.array(test_dataset.labels[:,1].clone().detach().float(),
+    mass_sig_false = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
                                 mask=np.logical_or(~(torch.squeeze(argmax_Y) == 1),~(torch.squeeze(argmax_Y) != test_dataset.labels[:,0].clone().detach().float())))
-    mass_bg_false  = ma.array(test_dataset.labels[:,1].clone().detach().float(),
+    mass_bg_false  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
                                 mask=np.logical_or(~(torch.squeeze(argmax_Y) == 0),~(torch.squeeze(argmax_Y) != test_dataset.labels[:,0].clone().detach().float())))
 
     # Get separated mass distributions MC-Matched
-    mass_sig_MC   = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 1))
-    mass_bg_MC    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 0))
+    mass_sig_MC   = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 1))
+    mass_bg_MC    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 0))
 
     ##################################################
     # Define fit function

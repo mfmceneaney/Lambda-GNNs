@@ -93,7 +93,7 @@ def main():
             args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
             args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
 
-    model.load_state_dict(torch.load(args.path))
+    model.load_state_dict(torch.load(args.path,map_location=device))
     model.eval()
 
     # Setup log directory

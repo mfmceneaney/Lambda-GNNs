@@ -61,7 +61,7 @@ def main():
 
     # Model load directory
     parser.add_argument('--path', type=str, default='torch_models',
-                        help='Log directory for histograms (default: torch_models)')
+                        help='Directory from which to load model (default: torch_models)')
 
     # Input dataset directory prefix option
     parser.add_argument('--prefix', type=str, default='',
@@ -97,7 +97,7 @@ def main():
             args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
             args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
 
-    model.load_state_dict(torch.load(args.path))
+    model.load_state_dict(torch.load(args.path,map_location=device))
     model.eval()
 
     # Setup log directory

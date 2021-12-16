@@ -334,11 +334,11 @@ def evaluate(model,device,dataset="", prefix="", split=0.75, max_events=1e10, lo
     ##################################################
 
     # Set font sizes
-    plt.rc('axes', titlesize=24)
-    plt.rc('axes', labelsize=24)
-    plt.rc('xtick', labelsize=18)
-    plt.rc('ytick', labelsize=18)
-    plt.rc('legend', fontsize=18)
+    plt.rc('axes', titlesize=30)
+    plt.rc('axes', labelsize=30)
+    plt.rc('xtick', labelsize=24)
+    plt.rc('ytick', labelsize=24)
+    plt.rc('legend', fontsize=24)
 
     # Plot mass decisions separated into signal/background
     bins = 100

@@ -364,15 +364,15 @@ def evaluate(model,device,dataset="", prefix="", split=0.75, max_events=1e10, lo
 
     # Setup legend entries for fit info
     lg = "Fit Info\n-------------------------\n"
-    lg += f"N = {round(optParams[0],0)}±{round(pcov[0,0],5)}\n"
-    lg += f"α = {round(optParams[1],3)}±{round(pcov[1,1],5)}\n"
-    lg += f"n = {round(optParams[2],3)}±{round(pcov[2,2],5)}\n"
-    lg += f"μ = {round(optParams[3],5)}±{round(pcov[3,3],5)}\n"
-    lg += f"σ = {round(optParams[4],5)}±{round(pcov[4,4],5)}\n"
-    lg += f"A = {round(optParams[5],0)}±{round(pcov[5,6],5)}\n"
-    lg += f"β = {round(optParams[6],0)}±{round(pcov[6,6],5)}\n"
-    lg += f"M = {round(optParams[7],2)}±{round(pcov[7,7],5)}\n"
-    plt.text(low_high[1]-(low_high[1]-low_high[0])/3,2/3*max(hdata[0]),lg,fontsize=16,linespacing=1.5)
+    lg += f"N = {round(optParams[0],0)}±{round(pcov[0,0],4)}\n"
+    lg += f"α = {round(optParams[1],3)}±{round(pcov[1,1],7)}\n"
+    lg += f"n = {round(optParams[2],3)}±{round(pcov[2,2],2)}\n"
+    lg += f"μ = {round(optParams[3],5)}±{round(pcov[3,3],10)}\n"
+    lg += f"σ = {round(optParams[4],5)}±{round(pcov[4,4],10)}\n"
+    lg += f"A = {round(optParams[5],0)}±{round(pcov[5,5],2)}\n"
+    lg += f"β = {round(optParams[6],0)}±{round(pcov[6,6],2)}\n"
+    lg += f"M = {round(optParams[7],2)}±{round(pcov[7,7],7)}\n"
+    plt.text(low_high[1]-(low_high[1]-low_high[0])/3,2/3*max(hdata[0]),lg,fontsize=24,linespacing=1.5)
 
     # Show the graph
     plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')

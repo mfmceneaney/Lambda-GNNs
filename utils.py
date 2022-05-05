@@ -1,9 +1,8 @@
-###############################
-# Matthew McEneaney
-# 7/8/21
-###############################
-
-from __future__ import absolute_import, division, print_function
+#--------------------------------------------------#
+# Description: Utility functions and classes for 
+#   training DGL GNNs.
+# Author: Matthew McEneaney
+#--------------------------------------------------#
 
 # ML Imports
 import numpy as np
@@ -31,38 +30,138 @@ from ignite.contrib.metrics import ROC_AUC, RocCurve
 from ignite.contrib.handlers.tensorboard_logger import *
 from ignite.handlers import global_step_from_engine, EarlyStopping
 
-# # Optuna imports
-# import optuna
-# from optuna.samplers import TPESampler
+# Optuna imports
+import optuna
+from optuna.samplers import TPESampler
 
 # Fitting imports
 import scipy.optimize as opt
 from scipy.stats import crystalball
 
 # Utility Imports
-import datetime, os
+import datetime, os, itertools
 
 # Local Imports
 from models import GIN, HeteroGIN
 
-def get_graph_dataset_info(dataset="",prefix="",batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
+#------------------------- Functions -------------------------#
+
+def get_graph_dataset_info(
+    dataset="",
+    prefix="",
+    key="data",
+    ekey=""
+    ):
+
+    """
+    Parameters
+    ----------
+    dataset : str, optional
+        Default : "".
+    prefix : str, optional
+        Default : "".
+    key : str, optional
+        Default : "data".
+    ekey : str, optional
+        Default : "".
+
+    Returns
+    -------
+    num_labels : int
+        Number of classification labels for dataset
+    node_feature_dim : int
+        Length of tensors in graph node data
+    edge_feature_dim : int
+        Length of tensors in graph edge data
+
+    Examples
+    --------
+
+    Notes
+    -----
+
+    """
 
     # Load training data
-    train_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    train_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
     num_labels = train_dataset.num_labels
-    node_feature_dim = train_dataset.graphs[0].ndata["data"].shape[-1]
+    node_feature_dim = train_dataset.graphs[0].ndata[key].shape[-1]  if  key != '' else 0
+    edge_feature_dim = train_dataset.graphs[0].edata[ekey].shape[-1] if ekey != '' else 0
     train_dataset.load()
     train_dataset = Subset(train_dataset,range(1))
 
-    return num_labels, node_feature_dim
+    return num_labels, node_feature_dim, edge_feature_dim
 
-def load_graph_dataset(dataset="",prefix="",split=0.75,max_events=1e5,batch_size=1024,drop_last=False,shuffle=True,num_workers=0,pin_memory=True, verbose=True):
+def load_graph_dataset(
+    dataset="",
+    prefix="",
+    key="data",
+    ekey="",
+    split=0.75,
+    max_events=1e5,
+    batch_size=1024,
+    drop_last=False,
+    shuffle=True,
+    num_workers=0,
+    pin_memory=True,
+    verbose=True
+    ):
+
+    """
+    Parameters
+    ----------
+    dataset : string, optional
+        Default : 1024.
+    prefix : string, optional
+        Default : False.
+    key : string, optional
+        Default : "data".
+    ekey : string, optional
+        Default : "".
+    split : float, optional
+        Default : 0.75.
+    max_events : int, optional
+        Default : 1e5.
+    batch_size : int, optional
+        Default : 1024.
+    drop_last : bool, optional
+        Default : False.
+    shuffle : bool, optional
+        Default : False.
+    num_workers : int, optional
+        Default : 0.
+    pin_memory : bool, optional
+        Default : True.
+    verbose : bool, optional
+        Default : True
+
+    Returns
+    -------
+    train_loader : dgl.GraphDataLoader
+        Dataloader for training data
+    val_loader : dgl.GraphDataLoader
+        Dataloader for validation data
+    num_labels : int
+        Number of classification labels for dataset
+    node_feature_dim : int
+        Length of tensors in graph node data
+    edge_feature_dim : int
+        Length of tensors in graph edge data
+
+    Examples
+    --------
+
+    Notes
+    -----
+    Load a graph dataset into training and validation loaders based on split fraction.
+    """
 
     # Load training data
-    train_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    train_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
     train_dataset.load()
     num_labels = train_dataset.num_labels
-    node_feature_dim = train_dataset.graphs[0].ndata["data"].shape[-1]
+    node_feature_dim = train_dataset.graphs[0].ndata[key].shape[-1]  if  key != '' else 0
+    edge_feature_dim = train_dataset.graphs[0].edata[ekey].shape[-1] if ekey != '' else 0
     index = int(min(len(train_dataset),max_events)*split)
     train_dataset = Subset(train_dataset,range(index))
 
@@ -76,7 +175,7 @@ def load_graph_dataset(dataset="",prefix="",split=0.75,max_events=1e5,batch_size
         num_workers=num_workers)
 
     # Load validation data
-    val_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    val_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
     val_dataset.load()
     val_dataset = Subset(val_dataset,range(index,len(val_dataset)))
 
@@ -89,43 +188,96 @@ def load_graph_dataset(dataset="",prefix="",split=0.75,max_events=1e5,batch_size
         pin_memory=pin_memory,
         num_workers=num_workers)
 
-    return train_loader, val_loader, num_labels, node_feature_dim    
+    return train_loader, val_loader, num_labels, node_feature_dim, edge_feature_dim
 
-def train(args, model, device, train_loader, val_loader, optimizer, scheduler, criterion, max_epochs,
-            dataset="", prefix="", log_interval=10,log_dir="logs/",save_path="model",verbose=True):
+def train(
+    args,
+    model,
+    device,
+    train_loader,
+    val_loader,
+    optimizer,
+    scheduler,
+    criterion,
+    max_epochs,
+    dataset="",
+    prefix="",
+    log_interval=10,
+    log_dir="logs/",
+    save_path="model",
+    verbose=True
+    ):
+
+    """
+    Parameters
+    ----------
+    args : str, required
+    model : str, required
+    device : str, required
+    train_loader : str, required
+    val_loader : str, required
+    optimizer : str, required
+    scheduler : str, required
+    criterion : str, required
+    max_epochs : str, required
+    dataset : str, optional
+        Default : ""
+    prefix : str, optional
+        Default : ""
+    log_interval : int, optional
+        Default : 10.
+    log_dir : str, optional
+        Default : "logs/".
+    save_path : str, optional
+        Default : "model"
+    verbose : bool, optional
+        Default : True
+    
+    Examples
+    --------
+
+    Notes
+    -----
+
+    """
 
     # Make sure log/save directories exist
     try:
-        os.mkdir(log_dir+"tb_logs/tmp") #NOTE: Do NOT use os.path.join() here since it requires that the directory exist.
+        os.makedirs(log_dir+"tb_logs/tmp") #NOTE: Do NOT use os.path.join() here since it requires that the directory exist.
     except Exception:
         if verbose: print("Could not create directory:",os.path.join(log_dir,"tb_logs/tmp"))
 
     # Show model if requested
     if verbose: print(model)
 
-    # Instatiate torchscript model to save (for importing model to java/c++)
-    traced_cell = None
-
     # Logs for matplotlib plots
     logs={'train':{'loss':[],'accuracy':[],'roc_auc':[]}, 'val':{'loss':[],'accuracy':[],'roc_auc':[]}}
 
-    # Create trainer
+    # Create train function
     def train_step(engine, batch):
+
+        # Ensure model is in training mode
         model.train()
+
+        # Get predictions and loss from data and labels
         x, label   = batch
-        y = label[:,0].clone().detach().long()
+        y = label[:,0].clone().detach().long() #NOTE: This assumes labels is 2D.
         x      = x.to(device)
         y      = y.to(device)
         y_pred = model(x)
         loss   = criterion(y_pred, y)
+
+        # Step optimizer
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        # traced_cell = torch.jit.trace(model, x)
+
+        # Apply softmax and get accuracy
         test_Y = y.clone().detach().float().view(-1, 1) 
         probs_Y = torch.softmax(y_pred, 1)
-        argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
+        argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1) #TODO: Could set limit for classification? something like np.where(arg_max_Y>limit)
         acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
+
         return {
                 'y_pred': y_pred,
                 'y': y,
@@ -134,9 +286,47 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
                 'accuracy': acc
                 }
 
+    # Create validation function
+    def val_step(engine, batch):
+
+        # Ensure model is in evaluation mode
+        model.eval()
+
+        with torch.no_grad(): #NOTE: Important to call both model.eval and with torch.no_grad()! See https://stackoverflow.com/questions/55627780/evaluating-pytorch-models-with-torch-no-grad-vs-model-eval.
+
+            # Get predictions and loss from data and labels
+            x, label   = batch
+            y = label[:,0].clone().detach().long() #NOTE: This assumes labels is 2D.
+            x      = x.to(device)
+            y      = y.to(device)
+            y_pred = model(x)
+            loss   = criterion(y_pred, y)
+
+            #------------ NOTE: NO BACKPROPAGATION FOR VALIDATION ----------#
+            # # Step optimizer
+            # optimizer.zero_grad()
+            # loss.backward()
+            # optimizer.step()
+            #------------ NOTE: NO BACKPROPAGATION FOR VALIDATION ----------#
+
+            # Apply softmax and get accuracy
+            test_Y = y.clone().detach().float().view(-1, 1) 
+            probs_Y = torch.softmax(y_pred, 1)
+            argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1) #TODO: Could set limit for classification? something like np.where(arg_max_Y>limit)
+            acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
+
+        return {
+                'y_pred': y_pred,
+                'y': y,
+                'y_pred_preprocessed': argmax_Y,
+                'loss': loss.detach().item(),
+                'accuracy': acc
+                }
+
+    # Create trainer
     trainer = Engine(train_step)
 
-    # Add metrics
+    # Add training metrics
     accuracy  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     accuracy.attach(trainer, 'accuracy')
     loss      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
@@ -144,34 +334,10 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     roc_auc   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     roc_auc.attach(trainer,'roc_auc')
 
-    # Create validator
-    def val_step(engine, batch):
-        model.eval()
-        x, label   = batch
-        y = label[:,0].clone().detach().long()
-        x      = x.to(device)
-        y      = y.to(device)
-        y_pred = model(x)
-        loss   = criterion(y_pred, y)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        test_Y = y.clone().detach().float().view(-1, 1) 
-        probs_Y = torch.softmax(y_pred, 1)
-        argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
-        acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
-        model.train()
-        return {
-                'y_pred': y_pred,
-                'y': y,
-                'y_pred_preprocessed': argmax_Y,
-                'loss': loss.detach().item(),
-                'accuracy': acc
-                }
-
+    # Create evaluator
     evaluator = Engine(val_step)
 
-    # Add metrics
+    # Add evaluation metrics
     accuracy_  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     accuracy_.attach(evaluator, 'accuracy')
     loss_      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
@@ -179,35 +345,50 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     roc_auc_   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     roc_auc_.attach(evaluator,'roc_auc')
 
-    ############################################################################################
-    # ADDED EARLY STOPPING
+    # Set up early stopping
     def score_function(engine):
         val_loss = engine.state.metrics['loss']
         return -val_loss
 
-    handler = EarlyStopping(patience=args.patience, min_delta=args.min_delta, cumulative_delta=args.cumulative_delta, score_function=score_function, trainer=trainer)
-    # Note: the handler is attached to an *Evaluator* (runs one epoch on validation dataset).
-    evaluator.add_event_handler(Events.COMPLETED, handler)
-    ############################################################################################
+    handler = EarlyStopping(
+        patience=args.patience,
+        min_delta=args.min_delta,
+        cumulative_delta=args.cumulative_delta,
+        score_function=score_function,
+        trainer=trainer
+        )
+    evaluator.add_event_handler(Events.COMPLETED, handler) #NOTE: The handler is attached to an evaluator which runs one epoch on validation dataset.
 
+    # Print training loss and accuracy
     @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
-    def log_training_loss(trainer):
+    def print_training_loss(trainer):
         if verbose: print(f"\rEpoch[{trainer.state.epoch}/{max_epochs} : " +
             f"{(trainer.state.iteration-(trainer.state.epoch-1)*trainer.state.epoch_length)/trainer.state.epoch_length*100:.1f}%] " +
             f"Loss: {trainer.state.output['loss']:.3f} Accuracy: {trainer.state.output['accuracy']:.3f}",end='')
 
+    # Step learning rate
     @trainer.on(Events.EPOCH_COMPLETED)
     def stepLR(trainer):
         scheduler.step()
 
+    # # Step learning rate #NOTE: DEBUGGING: TODO: Replace above...
+    # @trainer.on(Events.EPOCH_COMPLETED)
+    # def stepLR(trainer):
+    #     if type(scheduler)==torch.optim.lr_scheduler.ReduceLROnPlateau:
+    #         scheduler.step(trainer.state.output['train_loss'])#TODO: NOTE: DEBUGGING.... Fix this...
+    #     else:
+    #         scheduler.step()
+
+    # Log training metrics
     @trainer.on(Events.EPOCH_COMPLETED)
-    def log_training_results(trainer):
+    def log_training_metrics(trainer):
         metrics = evaluator.run(train_loader).metrics
         for metric in metrics.keys(): logs['train'][metric].append(metrics[metric])
         if verbose: print(f"\nTraining Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
 
+    # Log validation metrics
     @trainer.on(Events.EPOCH_COMPLETED)
-    def log_validation_results(trainer):
+    def log_validation_metrics(trainer):
         metrics = evaluator.run(val_loader).metrics
         for metric in metrics.keys(): logs['val'][metric].append(metrics[metric])
         if verbose: print(f"Validation Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
@@ -253,9 +434,9 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     trainer.run(train_loader, max_epochs=max_epochs)
     tb_logger.close() #IMPORTANT!
     if save_path!="":
-        torch.save(model.to('cpu').state_dict(), os.path.join(log_dir,save_path))
-        # traced_cell.save(os.path.join(log_dir,save_path+'.zip'))
-
+        torch.save(model.to('cpu').state_dict(), os.path.join(log_dir,save_path+"_weights")) #NOTE: Save to cpu state so you can test more easily.
+        torch.save(model.to('cpu'), os.path.join(log_dir,save_path)) #NOTE: Save to cpu state so you can test more easily.
+   
     # Create training/validation loss plot
     f = plt.figure()
     plt.subplot()
@@ -278,11 +459,433 @@ def train(args, model, device, train_loader, val_loader, optimizer, scheduler, c
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
     f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
-    
+
+def train_dagnn(
+    args,
+    model,
+    classifier,
+    discriminator,
+    device,
+    train_loader,
+    val_loader,
+    dom_train_loader,
+    dom_val_loader,
+    model_optimizer,
+    classifier_optimizer,
+    discriminator_optimizer,
+    scheduler,
+    train_criterion,
+    dom_criterion,
+    # lambda_function,#TODO: Commented out for DEBUGGING
+    max_epochs,
+    dataset="",
+    prefix="",
+    log_interval=10,
+    log_dir="logs/",
+    save_path="model",
+    verbose=True
+    ):
+
+    """
+    Parameters
+    ----------
+    args : str, required #TODO: Fix these and get rid of args argument...
+    model : str, required
+    classifier : str, required
+    discriminator : str, required
+    device : str, required
+    train_loader : str, required
+    val_loader : str, required
+    dom_train_loader : str, required
+    dom_val_loader : str, required
+    model_optimizer : str, required
+    classifier_optimizer : str, required
+    discriminator_optimizer : str, required
+    scheduler : str, required
+    train_criterion : str, required
+    dom_criterion : str, required
+    lambda_function : function, required
+    max_epochs : int, required
+    dataset : str, optional
+        Default : ""
+    prefix : str, optional
+        Default : ""
+    log_interval : int, optional
+        Default : 10
+    log_dir : str, optional
+        Default : "logs/"
+    save_path : str, optional
+        Default : "model".
+    verbose : bool, optional
+        Default : True.
+
+    Examples
+    --------
+
+    Notes
+    -----
+
+    """
+
+    # Make sure log/save directories exist
+    try:
+        os.makedirs(log_dir+"tb_logs/tmp") #NOTE: Do NOT use os.path.join() here since it requires that the directory exist.
+    except Exception:
+        if verbose: print("Could not create directory:",os.path.join(log_dir,"tb_logs/tmp"))
+
+    # Show model if requested
+    if verbose: print(model)
+
+    # Logs for matplotlib plots
+    logs={'train':{'train_loss':[],'train_accuracy':[],'train_roc_auc':[],'dom_loss':[],'dom_accuracy':[],'dom_roc_auc':[]},
+            'val':{'train_loss':[],'train_accuracy':[],'train_roc_auc':[],'dom_loss':[],'dom_accuracy':[],'dom_roc_auc':[]}}
+
+    # Function to decrease lambda with epoch #TODO: Set this from the arguments.
+    def lambda_function(epoch, max_epochs):
+        p = epoch / max_epochs
+        return 2. / (1+np.exp(-10.*p)) - 1.
+
+    # Continuously sample target domain data for training and validation
+    dom_train_set = itertools.cycle(dom_train_loader)
+    dom_val_set   = itertools.cycle(dom_val_loader)
+
+    # Create train function
+    def train_step(engine, batch):
+
+        # Ensure model is in training mode
+        model.train()
+
+        # Get domain data
+        tgt = dom_train_set.__next__()
+        tgt = tgt.to(device)
+
+        # Get predictions and loss from data and labels
+        x, label     = batch
+        train_labels = label[:,0].clone().detach().long() #NOTE: This assumes labels is 2D.
+        x            = x.to(device)
+        train_labels = train_labels.to(device)
+
+        # Concatenate classification data and domain data
+        x = dgl.unbatch(x)
+        nLabelled   = len(x)
+        nUnlabelled = len(tgt)
+        for el in dgl.unbatch(tgt): #NOTE: Append test domain data since concatenation doesn't work.
+            x.append(el)
+        x = dgl.batch(x) #NOTE: Training and domain data must have the same schema for this to work.
+
+        # Get hidden representation from model on training and domain data
+        h = model(x)
+        
+        # Step the domain discriminator on training and domain data
+        dom_y = discriminator(h.detach())
+        dom_labels = torch.cat([[1 for i in range(nLabelled)], [0 for i in range(nUnlabelled)]], dim=0)#NOTE: Make sure domain label lengths match actual batches at the end.
+        dom_loss = bce(dom_y, dom_labels)
+        discriminator.zero_grad()
+        dom_loss.backward()
+        discriminator_optimizer.step()
+        
+        # Step the classifier on training data
+        train_y = classifier(h[:nLabelled]) #NOTE: Only train on labelled (i.e., training) data, not domain data.
+        dom_y = discriminator(h)
+        train_loss = train_criterion(train_y, train_labels)
+        dom_loss   = dom_criterion(dom_y, dom_labels)
+
+        # Get total loss using lambda coefficient for epoch
+        coeff = lambda_function(engine.state.epoch, max_epochs)
+        tot_loss = train_loss - coeff * dom_loss
+        
+        # Zero gradients in all parts of model
+        model.zero_grad()
+        classifier.zero_grad()
+        discriminator.zero_grad()
+        
+        # Step total loss
+        tot_loss.backward()
+        
+        # Step classifier and model optimizers (backwards)
+        classifier_optimizer.step()
+        model_optimizer.step()
+
+        # Apply softmax and get accuracy on training data
+        train_true_y = train_labels.clone().detach().float().view(-1, 1) 
+        train_probs_y = torch.softmax(train_y, 1)
+        train_argmax_y = torch.max(probs_y, 1)[1].view(-1, 1) #TODO: Could set limit for classification? something like np.where(arg_max_Y>limit)
+        train_acc = (train_true_y == train_argmax_y.float()).sum().item() / len(train_true_y)
+
+        # Apply softmax and get accuracy on domain data
+        dom_true_y = dom_labels.clone().detach().float().view(-1, 1) 
+        dom_probs_y = torch.softmax(dom_y, 1)
+        dom_argmax_y = torch.max(probs_y, 1)[1].view(-1, 1) #TODO: Could set limit for classification? something like np.where(arg_max_Y>limit)
+        dom_acc = (dom_true_y == dom_argmax_y.float()).sum().item() / len(dom_true_y)
+
+        return {
+                'train_y': train_y, #CLASSIFIER OUTPUT
+                'train_true_y': train_true_y,
+                'train_argmax_y': train_argmax_y,
+                'train_loss': train_loss.detach().item(),
+                'train_acc': train_acc,
+                'dom_y': dom_y, #DISCRIMINATOR OUTPUT
+                'dom_true_y': dom_true_y,
+                'dom_argmax_y': dom_argmax_y,
+                'dom_loss': dom_loss.detach().item(),
+                'dom_acc': dom_acc,
+                'tot_loss': tot_loss.detach().item() #TOTAL LOSS
+                }
+
+    # Create validation function
+    def val_step(engine, batch):
+
+        # Ensure model is in evaluation mode
+        model.eval()
+
+        with torch.no_grad(): #NOTE: Important to call both model.eval and with torch.no_grad()! See https://stackoverflow.com/questions/55627780/evaluating-pytorch-models-with-torch-no-grad-vs-model-eval.
+            
+            # Get domain data
+            tgt = dom_val_set.__next__()
+            tgt = tgt.to(device)
+
+            # Get predictions and loss from data and labels
+            x, label     = batch
+            train_labels = label[:,0].clone().detach().long() #NOTE: This assumes labels is 2D.
+            x            = x.to(device)
+            train_labels = train_labels.to(device)
+
+            # Concatenate classification data and domain data
+            x = dgl.unbatch(x)
+            nLabelled   = len(x)
+            nUnlabelled = len(tgt)
+            for el in dgl.unbatch(tgt): #NOTE: Append test domain data since concatenation doesn't work.
+                x.append(el)
+            x = dgl.batch(x) #NOTE: Training and domain data must have the same schema for this to work.
+
+            # Get hidden representation from model on training and domain data
+            h = model(x)
+            
+            # Step the domain discriminator on training and domain data
+            dom_y = discriminator(h.detach())
+            dom_labels = torch.cat([[1 for i in range(nLabelled)], [0 for i in range(nUnlabelled)]], dim=0) #NOTE: Make sure domain label lengths match actual batches at the end.
+            dom_loss = bce(dom_y, dom_labels)
+
+            #------------ NOTE: NO BACKPROPAGATION FOR VALIDATION ----------#
+            # discriminator.zero_grad()
+            # dom_loss.backward()
+            # discriminator_optimizer.step()
+            #------------ NOTE: NO BACKPROPAGATION FOR VALIDATION ----------#
+            
+            # Step the classifier on training data
+            train_y = classifier(h[:nLabelled]) #NOTE: Only evaluate on labelled (i.e., training) data, not domain data.
+            dom_y = discriminator(h)
+            train_loss = train_criterion(train_y, train_labels)
+            dom_loss   = dom_criterion(dom_y, dom_labels)
+
+            # Get total loss using lambda coefficient for epoch
+            coeff = lambda_function(engine.state.epoch, max_epochs)
+            tot_loss = train_loss - coeff * dom_loss
+            
+            #------------ NOTE: NO BACKPROPAGATION FOR VALIDATION ----------#
+            # # Zero gradients in all parts of model
+            # model.zero_grad()
+            # classifier.zero_grad()
+            # discriminator.zero_grad()
+            
+            # # Step total loss
+            # tot_loss.backward()
+            
+            # # Step classifier and model optimizers (backwards)
+            # classifier_optimizer.step()
+            # model_optimizer.step()
+            #------------ NOTE: NO BACKPROPAGATION FOR VALIDATION ----------#
+
+            # Apply softmax and get accuracy on training data
+            train_true_y = train_labels.clone().detach().float().view(-1, 1) 
+            train_probs_y = torch.softmax(train_y, 1)
+            train_argmax_y = torch.max(probs_y, 1)[1].view(-1, 1) #TODO: Could set limit for classification? something like np.where(arg_max_Y>limit)
+            train_acc = (train_true_y == train_argmax_y.float()).sum().item() / len(train_true_y)
+
+            # Apply softmax and get accuracy on domain data
+            dom_true_y = dom_labels.clone().detach().float().view(-1, 1) 
+            dom_probs_y = torch.softmax(dom_y, 1)
+            dom_argmax_y = torch.max(probs_y, 1)[1].view(-1, 1) #TODO: Could set limit for classification? something like np.where(arg_max_Y>limit)
+            dom_acc = (dom_true_y == dom_argmax_y.float()).sum().item() / len(dom_true_y)
+
+        return {
+                'train_y': train_y, #CLASSIFIER OUTPUT
+                'train_true_y': train_true_y,
+                'train_argmax_y': train_argmax_y,
+                'train_loss': train_loss.detach().item(),
+                'train_acc': train_acc,
+                'dom_y': dom_y, #DISCRIMINATOR OUTPUT
+                'dom_true_y': dom_true_y,
+                'dom_argmax_y': dom_argmax_y,
+                'dom_loss': dom_loss.detach().item(),
+                'dom_acc': dom_acc,
+                'tot_loss': tot_loss.detach().item() #TOTAL LOSS
+                }
+
+    # Create trainer
+    trainer = Engine(train_step)
+
+    # Add training metrics for classifier
+    train_accuracy  = Accuracy(output_transform=lambda x: [x['train_y'], x['train_true_y']])
+    train_accuracy.attach(trainer, 'train_accuracy')
+    train_loss      = Loss(train_criterion,output_transform=lambda x: [x['train_y'], x['train_true_y']])
+    train_loss.attach(trainer, 'train_loss')
+    train_roc_auc   = ROC_AUC(output_transform=lambda x: [x['train_y'], x['train_true_y']])
+    train_roc_auc.attach(trainer,'train_roc_auc')
+
+    # Add training metrics for discriminator
+    dom_accuracy  = Accuracy(output_transform=lambda x: [x['dom_y'], x['dom_true_y']])
+    dom_accuracy.attach(trainer, 'dom_accuracy')
+    dom_loss      = Loss(dom_criterion,output_transform=lambda x: [x['dom_y'], x['dom_true_y']])
+    dom_loss.attach(trainer, 'dom_loss')
+    dom_roc_auc   = ROC_AUC(output_transform=lambda x: [x['dom_y'], x['dom_true_y']])
+    dom_roc_auc.attach(trainer,'dom_roc_auc')
+
+    # Create evaluator
+    evaluator = Engine(val_step)
+
+    # Add training metrics for classifier
+    _train_accuracy  = Accuracy(output_transform=lambda x: [x['train_y'], x['train_true_y']])
+    _train_accuracy.attach(evaluator, 'train_accuracy')
+    _train_loss      = Loss(train_criterion,output_transform=lambda x: [x['train_y'], x['train_true_y']])
+    _train_loss.attach(evaluator, 'train_loss')
+    _train_roc_auc   = ROC_AUC(output_transform=lambda x: [x['train_y'], x['train_true_y']])
+    _train_roc_auc.attach(evaluator,'train_roc_auc')
+
+    # Add training metrics for discriminator
+    _dom_accuracy  = Accuracy(output_transform=lambda x: [x['dom_y'], x['dom_true_y']])
+    _dom_accuracy.attach(evaluator, 'dom_accuracy')
+    _dom_loss      = Loss(dom_criterion,output_transform=lambda x: [x['dom_y'], x['dom_true_y']])
+    _dom_loss.attach(evaluator, 'dom_loss')
+    _dom_roc_auc   = ROC_AUC(output_transform=lambda x: [x['dom_y'], x['dom_true_y']])
+    _dom_roc_auc.attach(evaluator,'dom_roc_auc')
+
+    # Set up early stopping
+    def score_function(engine):
+        val_loss = engine.state.metrics['loss']
+        return -val_loss
+
+    handler = EarlyStopping(
+        patience=args.patience,
+        min_delta=args.min_delta,
+        cumulative_delta=args.cumulative_delta,
+        score_function=score_function,
+        trainer=trainer
+        )
+    evaluator.add_event_handler(Events.COMPLETED, handler) #NOTE: The handler is attached to an evaluator which runs one epoch on validation dataset.
+
+    # Print training loss and accuracy
+    @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
+    def print_training_loss(trainer):
+        if verbose: print(
+            f"\rEpoch[{trainer.state.epoch}/{max_epochs} : " +
+            f"{(trainer.state.iteration-(trainer.state.epoch-1)*trainer.state.epoch_length)/trainer.state.epoch_length*100:.1f}%] " +
+            f"Classifier Loss: {trainer.state.output['train_loss']:.3f} Accuracy: {trainer.state.output['train_accuracy']:.3f} " +
+            f"Discriminator: Loss: {trainer.state.output['dom_loss']:.3f} Accuracy: {trainer.state.output['dom_accuracy']:.3f}",
+            end='')
+
+    # Step learning rate
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def stepLR(trainer):
+        if type(scheduler)==torch.optim.lr_scheduler.ReduceLROnPlateau:
+            scheduler.step(trainer.state.output['train_loss'])#TODO: NOTE: DEBUGGING.... Fix this...
+        else:
+            scheduler.step()
+
+    # Log training metrics
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def log_training_metrics(trainer):
+        metrics = evaluator.run(train_loader).metrics
+        for metric in metrics.keys(): logs['train'][metric].append(metrics[metric])
+        if verbose: print(
+            f"\nTraining Results - Epoch: {trainer.state.epoch} Classifier: loss: {metrics['train_loss']:.4f} accuracy: {metrics['train_accuracy']:.4f} Discriminator: loss: {metrics['dom_loss']:.4f} accuracy: {metrics['dom_accuracy']:.4f}")
+
+    # Log validation metrics
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def log_validation_metrics(trainer):
+        metrics = evaluator.run(val_loader).metrics
+        for metric in metrics.keys(): logs['val'][metric].append(metrics[metric])
+        if verbose: print(f"Validation Results - Epoch: {trainer.state.epoch}  Avg classifier loss: {metrics['train_loss']:.4f} Avg classifier accuracy: {metrics['train_accuracy']:.4f}")
+
+    # Create a TensorBoard logger
+    tb_logger = TensorboardLogger(log_dir=log_dir)
+
+    # Attach the logger to the trainer to log training loss at each iteration
+    tb_logger.attach_output_handler(
+        trainer,
+        event_name=Events.ITERATION_COMPLETED,
+        tag="training_by_iteration",
+        output_transform=lambda x: x["train_loss"]
+    )
+        
+    # Attach the logger to the evaluator on the training dataset and log Loss, Accuracy metrics after each epoch
+    tb_logger.attach_output_handler(
+        trainer,
+        event_name=Events.EPOCH_COMPLETED,
+        tag="training",
+        metric_names=["train_loss","train_accuracy","train_roc_auc","dom_loss","dom_accuracy","dom_roc_auc"],
+        global_step_transform=global_step_from_engine(trainer),
+    )
+
+    # Attach the logger to the evaluator on the validation dataset and log Loss, Accuracy metrics after
+    tb_logger.attach_output_handler(
+        evaluator,
+        event_name=Events.EPOCH_COMPLETED,
+        tag="validation",
+        metric_names=["train_loss","train_accuracy","train_roc_auc","dom_loss","dom_accuracy","dom_roc_auc"],
+        global_step_transform=global_step_from_engine(evaluator)
+    )
+
+    # Attach the logger to the trainer to log optimizer's parameters, e.g. learning rate at each iteration
+    tb_logger.attach_opt_params_handler(
+        trainer,
+        event_name=Events.ITERATION_STARTED,
+        optimizer=model_optimizer,
+        param_name='lr'  # optional
+    )#TODO: Add other learning rates?
+
+    # Run training loop
+    trainer.run(train_loader, max_epochs=max_epochs)
+    tb_logger.close() #IMPORTANT!
+    if save_path!="":
+        torch.save(model.to('cpu').state_dict(), os.path.join(log_dir,save_path+'_model_weights')) #NOTE: Save to cpu state so you can test more easily.
+        torch.save(classifier.to('cpu').state_dict(), os.path.join(log_dir,save_path+'_classifier_weights'))
+        torch.save(discriminator.to('cpu').state_dict(), os.path.join(log_dir,save_path+'_discriminator_weights'))
+        torch.save(model.to('cpu'), os.path.join(log_dir,save_path+'_model')) #NOTE: Save to cpu state so you can test more easily.
+        torch.save(classifier.to('cpu'), os.path.join(log_dir,save_path+'_classifier'))
+        torch.save(discriminator.to('cpu'), os.path.join(log_dir,save_path+'_discriminator'))
+
+    # Create training/validation loss plot
+    f = plt.figure()
+    plt.subplot()
+    plt.title('Loss per epoch')
+    plt.plot(logs['train']['train_loss'],'-',color='orange',label="classifier training")
+    plt.plot(logs['val']['train_loss'],'-',color='red',label="classifier validation")
+    plt.plot(logs['train']['dom_loss'],'--',color='orange',label="discriminator training")
+    plt.plot(logs['val']['dom_loss'],'--',color='red',label="discriminator validation")
+    plt.legend(loc='best', frameon=False)
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend()
+    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+
+    # Create training/validation accuracy plot
+    f = plt.figure()
+    plt.subplot()
+    plt.title('Accuracy per epoch')
+    plt.plot(logs['train']['train_accuracy'],'-',color='blue',label="classifier training")
+    plt.plot(logs['val']['train_accuracy'],'-',color='purple',label="classifier validation")
+    plt.plot(logs['train']['dom_accuracy'],'--',color='blue',label="discriminator training")
+    plt.plot(logs['val']['dom_accuracy'],'--',color='purple',label="discriminator validation")
+    plt.legend(loc='best', frameon=False)
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+
 def evaluate(model,device,dataset="", prefix="", split=0.75, max_events=1e10, log_dir="logs/",verbose=True):
 
     # Load validation data
-    test_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    test_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
     test_dataset.load()
     test_dataset = Subset(test_dataset,range(int(min(len(test_dataset),max_events)*split)))
 
@@ -497,406 +1100,414 @@ def evaluate(model,device,dataset="", prefix="", split=0.75, max_events=1e10, lo
     plt.ylabel('counts')
     f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
 
-# def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
-#     #NOTE: As of right now log_dir='logs/' should end with the slash
+def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
+    #NOTE: As of right now log_dir='logs/' should end with the slash
 
-#     # Load validation data
-#     test_dataset = LambdasDataset(args.prefix+args.dataset)
-#     test_dataset.load()
-#     test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split)))
+    # Load validation data
+    test_dataset = GraphDataset(args.prefix+args.dataset)
+    test_dataset.load()
+    test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split)))
 
-#     def objective(trial):
+    def objective(trial):
 
-#         # Get parameter suggestions for trial
-#         batch_size = args.batch[0] if args.batch[0] == args.batch[1] else trial.suggest_int("batch_size",args.batch[0],args.batch[1]) 
-#         nlayers = args.nlayers[0] if args.nlayers[0] == args.nlayers[1] else trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1])
-#         nmlp  = args.nmlp[0] if args.nmlp[0] == args.nmlp[1] else trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1])
-#         hdim  = args.hdim[0] if args.hdim[0] == args.hdim[1] else trial.suggest_int("hdim",args.hdim[0],args.hdim[1])
-#         do    = args.dropout[0] if args.dropout[0] == args.dropout[1] else trial.suggest_float("do",args.dropout[0],args.dropout[1])
-#         lr    = args.lr[0] if args.lr[0] == args.lr[1] else trial.suggest_float("lr",args.lr[0],args.lr[1],log=True)
-#         step  = args.step[0] if args.step[0] == args.step[1] else trial.suggest_int("step",args.step[0],args.step[1])
-#         gamma = args.gamma[0] if args.gamma[0] == args.gamma[1] else trial.suggest_float("gamma",args.gamma[0],args.gamma[1])
-#         max_epochs = args.epochs
+        # Get parameter suggestions for trial
+        batch_size = args.batch[0] if args.batch[0] == args.batch[1] else trial.suggest_int("batch_size",args.batch[0],args.batch[1]) 
+        nlayers = args.nlayers[0] if args.nlayers[0] == args.nlayers[1] else trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1])
+        nmlp  = args.nmlp[0] if args.nmlp[0] == args.nmlp[1] else trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1])
+        hdim  = args.hdim[0] if args.hdim[0] == args.hdim[1] else trial.suggest_int("hdim",args.hdim[0],args.hdim[1])
+        do    = args.dropout[0] if args.dropout[0] == args.dropout[1] else trial.suggest_float("do",args.dropout[0],args.dropout[1])
+        lr    = args.lr[0] if args.lr[0] == args.lr[1] else trial.suggest_float("lr",args.lr[0],args.lr[1],log=True)
+        step  = args.step[0] if args.step[0] == args.step[1] else trial.suggest_int("step",args.step[0],args.step[1])
+        gamma = args.gamma[0] if args.gamma[0] == args.gamma[1] else trial.suggest_float("gamma",args.gamma[0],args.gamma[1])
+        max_epochs = args.epochs
 
-#         # Setup data and model
-#         train_loader, val_loader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, split=args.split, max_events = args.max_events,
-#                                                         num_workers=args.nworkers, batch_size=batch_size)
+        # Setup data and model #NOTE: DO THIS HERE SINCE IT DEPENDS ON BATCH SIZE.
+        train_loader, val_loader, nclasses, nfeatures = load_graph_dataset(dataset=args.dataset, split=args.split, max_events = args.max_events,
+                                                        num_workers=args.nworkers, batch_size=batch_size)
 
-#         # Initiate model and optimizer, scheduler, loss
-#         model = GIN(nlayers,nmlp,nfeatures,hdim,nclasses,do,args.learn_eps,args.npooling,args.gpooling).to(args.device)
-#         optimizer = optim.Adam(model.parameters(), lr=lr)
-#         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step, gamma=gamma)
-#         criterion = nn.CrossEntropyLoss()
+        # Initiate model and optimizer, scheduler, loss
+        model = GIN(nlayers,nmlp,nfeatures,hdim,nclasses,do,args.learn_eps,args.npooling,args.gpooling).to(args.device)
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step, gamma=gamma)
+        criterion = nn.CrossEntropyLoss()
 
-#         # Make sure log/save directories exist
-#         trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number)
-#         try:
-#             os.mkdir(args.log+'/'+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
-#         except FileExistsError:
-#             if args.verbose: print("Directory:",os.path.join(args.log,trialdir))
-#         trialdir = os.path.join(args.log,trialdir)
+        # Make sure log/save directories exist
+        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number)
+        try:
+            os.makedirs(args.log+'/'+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
+        except FileExistsError:
+            if args.verbose: print("Directory:",os.path.join(args.log,trialdir))
+        trialdir = os.path.join(args.log,trialdir)
 
-#         # Show model if requested
-#         if args.verbose: print(model)
+        # Show model if requested
+        if args.verbose: print(model)
 
-#         # Instatiate torchscript model to save (for importing model to java/c++)
-#         traced_cell = None
+        # Instatiate torchscript model to save (for importing model to java/c++)
+        traced_cell = None
 
-#         # Logs for matplotlib plots
-#         logs={'train':{'loss':[],'accuracy':[],'roc_auc':[]}, 'val':{'loss':[],'accuracy':[],'roc_auc':[]}}
+        # Logs for matplotlib plots
+        logs={'train':{'loss':[],'accuracy':[],'roc_auc':[]}, 'val':{'loss':[],'accuracy':[],'roc_auc':[]}}
 
-#         # Create trainer
-#         def train_step(engine, batch):
-#             model.train()
-#             x, label   = batch
-#             y = label[:,0].clone().detach().long()
-#             x      = x.to(args.device)
-#             y      = y.to(args.device)
-#             y_pred = model(x)
-#             loss   = criterion(y_pred, y)
-#             optimizer.zero_grad()
-#             loss.backward()
-#             optimizer.step()
-#             traced_cell = torch.jit.trace(model, x)
-#             test_Y = y.clone().detach().float().view(-1, 1) 
-#             probs_Y = torch.softmax(y_pred, 1)
-#             argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
-#             acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
-#             return {
-#                     'y_pred': y_pred,
-#                     'y': y,
-#                     'y_pred_preprocessed': argmax_Y,
-#                     'loss': loss.detach().item(),
-#                     'accuracy': acc
-#                     }
+        # Create trainer
+        def train_step(engine, batch):
+            model.train()
+            x, label   = batch
+            y = label[:,0].clone().detach().long()
+            x      = x.to(args.device)
+            y      = y.to(args.device)
+            y_pred = model(x)
+            loss   = criterion(y_pred, y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            traced_cell = torch.jit.trace(model, x)
+            test_Y = y.clone().detach().float().view(-1, 1) 
+            probs_Y = torch.softmax(y_pred, 1)
+            argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
+            acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
+            return {
+                    'y_pred': y_pred,
+                    'y': y,
+                    'y_pred_preprocessed': argmax_Y,
+                    'loss': loss.detach().item(),
+                    'accuracy': acc
+                    }
 
-#         trainer = Engine(train_step)
+        trainer = Engine(train_step)
 
-#         # Add metrics
-#         accuracy  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
-#         accuracy.attach(trainer, 'accuracy')
-#         loss      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
-#         loss.attach(trainer, 'loss')
-#         roc_auc   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
-#         roc_auc.attach(trainer,'roc_auc')
+        # Add metrics
+        accuracy  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
+        accuracy.attach(trainer, 'accuracy')
+        loss      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
+        loss.attach(trainer, 'loss')
+        roc_auc   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
+        roc_auc.attach(trainer,'roc_auc')
 
-#         # Create validator
-#         def val_step(engine, batch):
-#             model.eval()
-#             x, label   = batch
-#             y = label[:,0].clone().detach().long()
-#             x      = x.to(args.device)
-#             y      = y.to(args.device)
-#             y_pred = model(x)
-#             loss   = criterion(y_pred, y)
-#             optimizer.zero_grad()
-#             loss.backward()
-#             optimizer.step()
-#             test_Y = y.clone().detach().float().view(-1, 1) 
-#             probs_Y = torch.softmax(y_pred, 1)
-#             argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
-#             acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
-#             model.train()
-#             return {
-#                     'y_pred': y_pred,
-#                     'y': y,
-#                     'y_pred_preprocessed': argmax_Y,
-#                     'loss': loss.detach().item(),
-#                     'accuracy': acc
-#                     }
+        # Create validator
+        def val_step(engine, batch):
+            model.eval()
+            x, label   = batch
+            y = label[:,0].clone().detach().long()
+            x      = x.to(args.device)
+            y      = y.to(args.device)
+            y_pred = model(x)
+            loss   = criterion(y_pred, y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            test_Y = y.clone().detach().float().view(-1, 1) 
+            probs_Y = torch.softmax(y_pred, 1)
+            argmax_Y = torch.max(probs_Y, 1)[1].view(-1, 1)
+            acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
+            model.train()
+            return {
+                    'y_pred': y_pred,
+                    'y': y,
+                    'y_pred_preprocessed': argmax_Y,
+                    'loss': loss.detach().item(),
+                    'accuracy': acc
+                    }
 
-#         evaluator = Engine(val_step)
+        evaluator = Engine(val_step)
 
-#         # Add metrics
-#         accuracy_  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
-#         accuracy_.attach(evaluator, 'accuracy')
-#         loss_      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
-#         loss_.attach(evaluator, 'loss')
-#         roc_auc_   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
-#         roc_auc_.attach(evaluator,'roc_auc')
+        # Add metrics
+        accuracy_  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
+        accuracy_.attach(evaluator, 'accuracy')
+        loss_      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
+        loss_.attach(evaluator, 'loss')
+        roc_auc_   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
+        roc_auc_.attach(evaluator,'roc_auc')
 
-#         # # Register a pruning handler to the evaluator.
-#         # pruning_handler = optuna.integration.PyTorchIgnitePruningHandler(trial, "accuracy", evaluator) #ORIGINALLY TRAINER
-#         # evaluator.add_event_handler(Events.COMPLETED, pruning_handler)
+        # # Register a pruning handler to the evaluator.
+        # pruning_handler = optuna.integration.PyTorchIgnitePruningHandler(trial, "accuracy", evaluator) #ORIGINALLY TRAINER
+        # evaluator.add_event_handler(Events.COMPLETED, pruning_handler)
 
-#         # Add early stopping
-#         def score_function(engine):
-#             val_loss = engine.state.metrics['loss']
-#             return -val_loss
+        # Add early stopping
+        def score_function(engine):
+            val_loss = engine.state.metrics['loss']
+            return -val_loss
 
-#         handler = EarlyStopping(patience=args.patience, min_delta=args.min_delta, cumulative_delta=args.cumulative_delta, score_function=score_function, trainer=trainer)
-#         # Note: the handler is attached to an *Evaluator* (runs one epoch on validation dataset).
-#         evaluator.add_event_handler(Events.COMPLETED, handler)
+        handler = EarlyStopping(patience=args.patience, min_delta=args.min_delta, cumulative_delta=args.cumulative_delta, score_function=score_function, trainer=trainer)
+        # Note: the handler is attached to an *Evaluator* (runs one epoch on validation dataset).
+        evaluator.add_event_handler(Events.COMPLETED, handler)
 
-#         @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
-#         def log_training_loss(trainer):
-#             if verbose: print(f"\rEpoch[{trainer.state.epoch}/{max_epochs} : " +
-#                 f"{(trainer.state.iteration-(trainer.state.epoch-1)*trainer.state.epoch_length)/trainer.state.epoch_length*100:.1f}%] " +
-#                 f"Loss: {trainer.state.output['loss']:.3f} Accuracy: {trainer.state.output['accuracy']:.3f}",end='')
+        @trainer.on(Events.ITERATION_COMPLETED(every=log_interval))
+        def print_training_loss(trainer):
+            if verbose: print(f"\rEpoch[{trainer.state.epoch}/{max_epochs} : " +
+                f"{(trainer.state.iteration-(trainer.state.epoch-1)*trainer.state.epoch_length)/trainer.state.epoch_length*100:.1f}%] " +
+                f"Loss: {trainer.state.output['loss']:.3f} Accuracy: {trainer.state.output['accuracy']:.3f}",end='')
 
-#         @trainer.on(Events.EPOCH_COMPLETED)
-#         def stepLR(trainer):
-#             scheduler.step()
+        # @trainer.on(Events.EPOCH_COMPLETED)
+        # def stepLR(trainer):
+        #     scheduler.step()
 
-#         @trainer.on(Events.EPOCH_COMPLETED)
-#         def log_training_results(trainer):
-#             metrics = evaluator.run(train_loader).metrics
-#             for metric in metrics.keys(): logs['train'][metric].append(metrics[metric])
-#             if verbose: print(f"\nTraining Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
+        # Step learning rate
+        @trainer.on(Events.EPOCH_COMPLETED)
+        def stepLR(trainer):
+            if type(scheduler)==torch.optim.lr_scheduler.ReduceLROnPlateau:
+                scheduler.step(trainer.state.output['loss'])#TODO: NOTE: DEBUGGING.... Fix this...
+            else:
+                scheduler.step()
 
-#         @trainer.on(Events.EPOCH_COMPLETED)
-#         def log_validation_results(trainer):
-#             metrics = evaluator.run(val_loader).metrics
-#             for metric in metrics.keys(): logs['val'][metric].append(metrics[metric])
-#             if verbose: print(f"Validation Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
+        @trainer.on(Events.EPOCH_COMPLETED)
+        def log_training_metrics(trainer):
+            metrics = evaluator.run(train_loader).metrics
+            for metric in metrics.keys(): logs['train'][metric].append(metrics[metric])
+            if verbose: print(f"\nTraining Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
 
-#         # Create a TensorBoard logger
-#         try: os.mkdir(trialdir+"/tb_logs")
-#         except FileExistsError:
-#             print('TB directory:',trialdir+"/tb_logs","already exists!")
-#         tb_logger = TensorboardLogger(log_dir=trialdir+"/tb_logs")
+        @trainer.on(Events.EPOCH_COMPLETED)
+        def log_validation_metrics(trainer):
+            metrics = evaluator.run(val_loader).metrics
+            for metric in metrics.keys(): logs['val'][metric].append(metrics[metric])
+            if verbose: print(f"Validation Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
 
-#         # Attach the logger to the trainer to log training loss at each iteration
-#         tb_logger.attach_output_handler(
-#             trainer,
-#             event_name=Events.ITERATION_COMPLETED,
-#             tag="training_by_iteration",
-#             output_transform=lambda x: x["loss"]
-#         )
+        # Create a TensorBoard logger
+        try: os.makedirs(trialdir+"/tb_logs")
+        except FileExistsError:
+            print('TB directory:',trialdir+"/tb_logs","already exists!")
+        tb_logger = TensorboardLogger(log_dir=trialdir+"/tb_logs")
+
+        # Attach the logger to the trainer to log training loss at each iteration
+        tb_logger.attach_output_handler(
+            trainer,
+            event_name=Events.ITERATION_COMPLETED,
+            tag="training_by_iteration",
+            output_transform=lambda x: x["loss"]
+        )
             
-#         # Attach the logger to the evaluator on the training dataset and log Loss, Accuracy metrics after each epoch
-#         tb_logger.attach_output_handler(
-#             trainer,
-#             event_name=Events.EPOCH_COMPLETED,
-#             tag="training",
-#             metric_names=["loss","accuracy","roc_auc"],
-#             global_step_transform=global_step_from_engine(trainer),
-#         )
+        # Attach the logger to the evaluator on the training dataset and log Loss, Accuracy metrics after each epoch
+        tb_logger.attach_output_handler(
+            trainer,
+            event_name=Events.EPOCH_COMPLETED,
+            tag="training",
+            metric_names=["loss","accuracy","roc_auc"],
+            global_step_transform=global_step_from_engine(trainer),
+        )
 
-#         # Attach the logger to the evaluator on the validation dataset and log Loss, Accuracy metrics after
-#         tb_logger.attach_output_handler(
-#             evaluator,
-#             event_name=Events.EPOCH_COMPLETED,
-#             tag="validation",
-#             metric_names=["loss","accuracy","roc_auc"],
-#             global_step_transform=global_step_from_engine(evaluator)
-#         )
+        # Attach the logger to the evaluator on the validation dataset and log Loss, Accuracy metrics after
+        tb_logger.attach_output_handler(
+            evaluator,
+            event_name=Events.EPOCH_COMPLETED,
+            tag="validation",
+            metric_names=["loss","accuracy","roc_auc"],
+            global_step_transform=global_step_from_engine(evaluator)
+        )
 
-#         # Attach the logger to the trainer to log optimizer's parameters, e.g. learning rate at each iteration
-#         tb_logger.attach_opt_params_handler(
-#             trainer,
-#             event_name=Events.ITERATION_STARTED,
-#             optimizer=optimizer,
-#             param_name='lr'  # optional
-#         )
+        # Attach the logger to the trainer to log optimizer's parameters, e.g. learning rate at each iteration
+        tb_logger.attach_opt_params_handler(
+            trainer,
+            event_name=Events.ITERATION_STARTED,
+            optimizer=optimizer,
+            param_name='lr'  # optional
+        )
 
-#         # Run training loop
-#         trainer.run(train_loader, max_epochs=max_epochs)
-#         tb_logger.close() #IMPORTANT!
-#         if save_path!="":
-#             torch.save(model.to('cpu').state_dict(),os.path.join(trialdir,save_path+args.study_name+'_'+str(trial.number)))
-#             traced_cell.save(os.path.join(trialdir,save_path+args.study_name+'_'+str(trial.number)+'.zip'))
+        # Run training loop
+        trainer.run(train_loader, max_epochs=max_epochs)
+        tb_logger.close() #IMPORTANT!
+        if save_path!="":
+            torch.save(model.to('cpu').state_dict(),os.path.join(trialdir,save_path+args.study_name+'_'+str(trial.number)))
+            traced_cell.save(os.path.join(trialdir,save_path+args.study_name+'_'+str(trial.number)+'.zip'))
 
-#         # Create training/validation loss plot
-#         f = plt.figure()
-#         plt.subplot()
-#         plt.title('Loss per epoch')
-#         plt.plot(logs['train']['loss'],label="training")
-#         plt.plot(logs['val']['loss'],label="validation")
-#         plt.legend(loc='best', frameon=False)
-#         plt.ylabel('loss')
-#         plt.xlabel('epoch')
-#         plt.legend()
-#         f.savefig(os.path.join(trialdir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+args.dataset+"_nEps"+str(max_epochs)+'.png'))
+        # Create training/validation loss plot
+        f = plt.figure()
+        plt.subplot()
+        plt.title('Loss per epoch')
+        plt.plot(logs['train']['loss'],label="training")
+        plt.plot(logs['val']['loss'],label="validation")
+        plt.legend(loc='best', frameon=False)
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend()
+        f.savefig(os.path.join(trialdir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+args.dataset+"_nEps"+str(max_epochs)+'.png'))
 
-#         # Create training/validation accuracy plot
-#         f = plt.figure()
-#         plt.subplot()
-#         plt.title('Accuracy per epoch')
-#         plt.plot(logs['train']['accuracy'],label="training")
-#         plt.plot(logs['val']['accuracy'],label="validation")
-#         plt.legend(loc='best', frameon=False)
-#         plt.ylabel('accuracy')
-#         plt.xlabel('epoch')
-#         f.savefig(os.path.join(trialdir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+args.dataset+"_nEps"+str(max_epochs)+'.png'))
+        # Create training/validation accuracy plot
+        f = plt.figure()
+        plt.subplot()
+        plt.title('Accuracy per epoch')
+        plt.plot(logs['train']['accuracy'],label="training")
+        plt.plot(logs['val']['accuracy'],label="validation")
+        plt.legend(loc='best', frameon=False)
+        plt.ylabel('accuracy')
+        plt.xlabel('epoch')
+        f.savefig(os.path.join(trialdir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+args.dataset+"_nEps"+str(max_epochs)+'.png'))
 
-#         # Evaluate model
-#         model.eval()
-#         test_bg    = batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop])#TODO: Figure out nicer way to use subset
-#         test_Y     = test_dataset.labels[:,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
-#         test_bg    = test_bg.to(args.device)
-#         test_Y     = test_Y.to(args.device)
-#         prediction = model(test_bg)
-#         probs_Y    = torch.softmax(prediction, 1)
-#         argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
-#         test_acc   = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
-#         if verbose: print('Accuracy of predictions on the test set: {:4f}%'.format(
-#             (test_Y == argmax_Y.float()).sum().item() / len(test_Y) * 100))
+        # Evaluate model
+        model.eval()
+        test_bg    = batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop])#TODO: Figure out nicer way to use subset
+        test_Y     = test_dataset.labels[:,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
+        test_bg    = test_bg.to(args.device)
+        test_Y     = test_Y.to(args.device)
+        prediction = model(test_bg)
+        probs_Y    = torch.softmax(prediction, 1)
+        argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
+        test_acc   = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
+        if verbose: print('Accuracy of predictions on the test set: {:4f}%'.format(
+            (test_Y == argmax_Y.float()).sum().item() / len(test_Y) * 100))
 
-#         # Copy arrays back to CPU
-#         test_Y   = test_Y.cpu()
-#         probs_Y  = probs_Y.cpu()
-#         argmax_Y = argmax_Y.cpu()
+        # Copy arrays back to CPU
+        test_Y   = test_Y.cpu()
+        probs_Y  = probs_Y.cpu()
+        argmax_Y = argmax_Y.cpu()
 
-#         # Get separated mass distributions
-#         mass_sig_Y    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 1))
-#         mass_bg_Y     = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 0))
+        # Get separated mass distributions
+        mass_sig_Y    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 1))
+        mass_bg_Y     = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(argmax_Y == 0))
 
-#         # Get false-positive true-negatives and vice versa
-#         mass_sig_true  = ma.array(test_dataset.labels[:,1].clone().detach().float(),
-#                                     mask=np.logical_or(~(torch.squeeze(argmax_Y) == 1),~(torch.squeeze(argmax_Y) == test_dataset.labels[:,0].clone().detach().float())))
-#         mass_bg_true   = ma.array(test_dataset.labels[:,1].clone().detach().float(),
-#                                     mask=np.logical_or(~(torch.squeeze(argmax_Y) == 0),~(torch.squeeze(argmax_Y) == test_dataset.labels[:,0].clone().detach().float())))
-#         mass_sig_false = ma.array(test_dataset.labels[:,1].clone().detach().float(),
-#                                     mask=np.logical_or(~(torch.squeeze(argmax_Y) == 1),~(torch.squeeze(argmax_Y) != test_dataset.labels[:,0].clone().detach().float())))
-#         mass_bg_false  = ma.array(test_dataset.labels[:,1].clone().detach().float(),
-#                                     mask=np.logical_or(~(torch.squeeze(argmax_Y) == 0),~(torch.squeeze(argmax_Y) != test_dataset.labels[:,0].clone().detach().float())))
+        # Get false-positive true-negatives and vice versa
+        mass_sig_true  = ma.array(test_dataset.labels[:,1].clone().detach().float(),
+                                    mask=np.logical_or(~(torch.squeeze(argmax_Y) == 1),~(torch.squeeze(argmax_Y) == test_dataset.labels[:,0].clone().detach().float())))
+        mass_bg_true   = ma.array(test_dataset.labels[:,1].clone().detach().float(),
+                                    mask=np.logical_or(~(torch.squeeze(argmax_Y) == 0),~(torch.squeeze(argmax_Y) == test_dataset.labels[:,0].clone().detach().float())))
+        mass_sig_false = ma.array(test_dataset.labels[:,1].clone().detach().float(),
+                                    mask=np.logical_or(~(torch.squeeze(argmax_Y) == 1),~(torch.squeeze(argmax_Y) != test_dataset.labels[:,0].clone().detach().float())))
+        mass_bg_false  = ma.array(test_dataset.labels[:,1].clone().detach().float(),
+                                    mask=np.logical_or(~(torch.squeeze(argmax_Y) == 0),~(torch.squeeze(argmax_Y) != test_dataset.labels[:,0].clone().detach().float())))
 
-#         # Get separated mass distributions MC-Matched
-#         mass_sig_MC   = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 1))
-#         mass_bg_MC    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 0))
+        # Get separated mass distributions MC-Matched
+        mass_sig_MC   = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 1))
+        mass_bg_MC    = ma.array(test_dataset.labels[:,1].clone().detach().float(),mask=~(test_dataset.labels[:,0] == 0))
 
-#         # Plot mass decisions separated into signal/background
-#         bins = 100
-#         low_high = (1.1,1.13)
-#         f = plt.figure()
-#         plt.title('Separated mass distribution')
-#         plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-#         plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
-#         plt.legend(loc='upper left', frameon=False)
-#         plt.ylabel('Counts')
-#         plt.xlabel('Invariant mass (GeV)')
-#         f.savefig(os.path.join(trialdir,'test_metrics_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
+        # Plot mass decisions separated into signal/background
+        bins = 100
+        low_high = (1.1,1.13)
+        f = plt.figure()
+        plt.title('Separated mass distribution')
+        plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+        plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+        plt.legend(loc='upper left', frameon=False)
+        plt.ylabel('Counts')
+        plt.xlabel('Invariant mass (GeV)')
+        f.savefig(os.path.join(trialdir,'test_metrics_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
 
-#         # Plot correct mass decisions separated into signal/background
-#         bins = 100
-#         # low_high = (1.1,1.13)
-#         f = plt.figure()
-#         plt.title('Separated mass distribution (true)')
-#         plt.hist(mass_sig_true[~mass_sig_true.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-#         plt.hist(mass_bg_true[~mass_bg_true.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
-#         plt.legend(loc='upper left', frameon=False)
-#         plt.ylabel('Counts')
-#         plt.xlabel('Invariant mass (GeV)')
-#         f.savefig(os.path.join(trialdir,'test_metrics_mass_true_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
+        # Plot correct mass decisions separated into signal/background
+        bins = 100
+        # low_high = (1.1,1.13)
+        f = plt.figure()
+        plt.title('Separated mass distribution (true)')
+        plt.hist(mass_sig_true[~mass_sig_true.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+        plt.hist(mass_bg_true[~mass_bg_true.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+        plt.legend(loc='upper left', frameon=False)
+        plt.ylabel('Counts')
+        plt.xlabel('Invariant mass (GeV)')
+        f.savefig(os.path.join(trialdir,'test_metrics_mass_true_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
 
-#         # Plot incorrect mass decisions separated into signal/background
-#         bins = 100
-#         # low_high = (1.1,1.13)
-#         f = plt.figure()
-#         plt.title('Separated mass distribution (false)')
-#         plt.hist(mass_sig_false[~mass_sig_false.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-#         plt.hist(mass_bg_false[~mass_bg_false.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
-#         plt.legend(loc='upper left', frameon=False)
-#         plt.ylabel('Counts')
-#         plt.xlabel('Invariant mass (GeV)')
-#         f.savefig(os.path.join(trialdir,'test_metrics_mass_false_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
+        # Plot incorrect mass decisions separated into signal/background
+        bins = 100
+        # low_high = (1.1,1.13)
+        f = plt.figure()
+        plt.title('Separated mass distribution (false)')
+        plt.hist(mass_sig_false[~mass_sig_false.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+        plt.hist(mass_bg_false[~mass_bg_false.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+        plt.legend(loc='upper left', frameon=False)
+        plt.ylabel('Counts')
+        plt.xlabel('Invariant mass (GeV)')
+        f.savefig(os.path.join(trialdir,'test_metrics_mass_false_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
 
-#         # Plot MC-Matched distributions
-#         bins = 100
-#         # low_high = (1.1,1.13)
-#         f = plt.figure()
-#         plt.title('Separated mass distribution MC-matched')
-#         plt.hist(mass_sig_MC[~mass_sig_MC.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-#         plt.hist(mass_bg_MC[~mass_bg_MC.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
-#         plt.legend(loc='upper left', frameon=False)
-#         plt.ylabel('Counts')
-#         plt.xlabel('Invariant mass (GeV)')
-#         f.savefig(os.path.join(trialdir,'mc_matched_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
+        # Plot MC-Matched distributions
+        bins = 100
+        # low_high = (1.1,1.13)
+        f = plt.figure()
+        plt.title('Separated mass distribution MC-matched')
+        plt.hist(mass_sig_MC[~mass_sig_MC.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+        plt.hist(mass_bg_MC[~mass_bg_MC.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+        plt.legend(loc='upper left', frameon=False)
+        plt.ylabel('Counts')
+        plt.xlabel('Invariant mass (GeV)')
+        f.savefig(os.path.join(trialdir,'mc_matched_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
 
-#         # Plot MC-Matched distributions for NN-identified signal
-#         bins = 100
-#         # low_high = (1.1,1.13)
-#         f = plt.figure()
-#         plt.title('NN-identified signal mass distribution MC-matched')
-#         plt.hist(mass_sig_true[~mass_sig_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
-#         plt.hist(mass_sig_false[~mass_sig_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
-#         plt.legend(loc='upper left', frameon=False)
-#         plt.ylabel('Counts')
-#         plt.xlabel('Invariant mass (GeV)')
-#         f.savefig(os.path.join(trialdir,'mc_matched_nn_sig_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
+        # Plot MC-Matched distributions for NN-identified signal
+        bins = 100
+        # low_high = (1.1,1.13)
+        f = plt.figure()
+        plt.title('NN-identified signal mass distribution MC-matched')
+        plt.hist(mass_sig_true[~mass_sig_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
+        plt.hist(mass_sig_false[~mass_sig_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
+        plt.legend(loc='upper left', frameon=False)
+        plt.ylabel('Counts')
+        plt.xlabel('Invariant mass (GeV)')
+        f.savefig(os.path.join(trialdir,'mc_matched_nn_sig_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
 
-#         # Plot MC-Matched distributions for NN-identified background
-#         bins = 100
-#         # low_high = (1.1,1.13)
-#         f = plt.figure()
-#         plt.title('NN-identified bg mass distribution MC-matched')
-#         plt.hist(mass_bg_true[~mass_bg_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
-#         plt.hist(mass_bg_false[~mass_bg_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
-#         plt.legend(loc='upper left', frameon=False)
-#         plt.ylabel('Counts')
-#         plt.xlabel('Invariant mass (GeV)')
-#         f.savefig(os.path.join(trialdir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
+        # Plot MC-Matched distributions for NN-identified background
+        bins = 100
+        # low_high = (1.1,1.13)
+        f = plt.figure()
+        plt.title('NN-identified bg mass distribution MC-matched')
+        plt.hist(mass_bg_true[~mass_bg_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
+        plt.hist(mass_bg_false[~mass_bg_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
+        plt.legend(loc='upper left', frameon=False)
+        plt.ylabel('Counts')
+        plt.xlabel('Invariant mass (GeV)')
+        f.savefig(os.path.join(trialdir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+args.dataset+'.png'))
 
-#         # Get ROC curve
-#         pfn_fp, pfn_tp, threshs = roc_curve(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
+        # Get ROC curve
+        pfn_fp, pfn_tp, threshs = roc_curve(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
 
-#         # Get area under the ROC curve
-#         auc = roc_auc_score(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
-#         if verbose: print(f'AUC = {auc:.4f}')
+        # Get area under the ROC curve
+        auc = roc_auc_score(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
+        if verbose: print(f'AUC = {auc:.4f}')
 
-#         # Create matplotlib plots for ROC curve and testing decisions
-#         f = plt.figure()
+        # Create matplotlib plots for ROC curve and testing decisions
+        f = plt.figure()
 
-#         # Get some nicer plot settings 
-#         plt.rcParams['figure.figsize'] = (4,4)
-#         plt.rcParams['font.family'] = 'serif'
-#         plt.rcParams['figure.autolayout'] = True
+        # Get some nicer plot settings 
+        plt.rcParams['figure.figsize'] = (4,4)
+        plt.rcParams['font.family'] = 'serif'
+        plt.rcParams['figure.autolayout'] = True
 
-#         # Plot the ROC curve
-#         plt.plot(pfn_tp, 1-pfn_fp, '-', color='black', label=model.name)
+        # Plot the ROC curve
+        plt.plot(pfn_tp, 1-pfn_fp, '-', color='black', label=model.name)
 
-#         # axes labels
-#         plt.xlabel('Lambda Event Efficiency')
-#         plt.ylabel('Background Rejection')
+        # axes labels
+        plt.xlabel('Lambda Event Efficiency')
+        plt.ylabel('Background Rejection')
 
-#         # axes limits
-#         plt.xlim(0, 1)
-#         plt.ylim(0, 1)
+        # axes limits
+        plt.xlim(0, 1)
+        plt.ylim(0, 1)
 
-#         # make legend and show plot
-#         plt.legend([model.name+f": AUC={auc:.4f}"],loc='lower left', frameon=False)
-#         f.savefig(os.path.join(trialdir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+args.dataset+".png"))
+        # make legend and show plot
+        plt.legend([model.name+f": AUC={auc:.4f}"],loc='lower left', frameon=False)
+        f.savefig(os.path.join(trialdir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+args.dataset+".png"))
 
-#         # Plot testing decisions
-#         bins = 100
-#         low = min(np.min(p) for p in probs_Y[:,1].detach().numpy())
-#         high = max(np.max(p) for p in probs_Y[:,0].detach().numpy())
-#         low_high = (low,high)
-#         f = plt.figure()
-#         plt.clf()
-#         plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
-#         plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
-#         plt.xlabel('output')
-#         plt.ylabel('counts')
-#         f.savefig(os.path.join(trialdir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+args.dataset+".png"))
+        # Plot testing decisions
+        bins = 100
+        low = min(np.min(p) for p in probs_Y[:,1].detach().numpy())
+        high = max(np.max(p) for p in probs_Y[:,0].detach().numpy())
+        low_high = (low,high)
+        f = plt.figure()
+        plt.clf()
+        plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
+        plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
+        plt.xlabel('output')
+        plt.ylabel('counts')
+        f.savefig(os.path.join(trialdir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+args.dataset+".png"))
 
-#         # Close figures: #NOTE: Important for memory!
-#         plt.close('all')
+        # Close figures: #NOTE: Important for memory!
+        plt.close('all')
 
-#         return test_acc
+        return test_acc
 
-#     ##### MAIN PART #####
-#     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
-#     sampler = TPESampler() #TODO: Add command line option for selecting different sampler types.
-#     study = optuna.create_study(sampler=sampler,direction="maximize", pruner=pruner)
-#     if args.db_path is not None:
-#         study = optuna.load_study(study_name=args.study_name, storage='sqlite:///'+args.db_path) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
-#     study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
-#     trial = study.best_trial
+    ##### MAIN PART #####
+    pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
+    sampler = TPESampler() #TODO: Add command line option for selecting different sampler types.
+    study = optuna.create_study(sampler=sampler,direction="maximize", pruner=pruner)
+    if args.db_path is not None:
+        study = optuna.load_study(study_name=args.study_name, storage='sqlite:///'+args.db_path) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
+    study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
+    trial = study.best_trial
 
-#     if verbose:
-#         print("Number of finished trials: ", len(study.trials))
-#         print("Best trial:")
-#         print("  Value: ", trial.value)
-#         print("  Params: ")
-#         for key, value in trial.params.items():
-#             print("    {}: {}".format(key, value))
+    if verbose:
+        print("Number of finished trials: ", len(study.trials))
+        print("Best trial:")
+        print("  Value: ", trial.value)
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
 
 def evaluate_on_data(model,device,dataset="", prefix="", split=0.1, log_dir="logs/",verbose=True):
 
     # Load validation data
-    test_dataset = LambdasDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    test_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
     test_dataset.load()
     test_dataset = Subset(test_dataset,range(int(len(test_dataset)*split)))
 
@@ -987,27 +1598,85 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=0.1, log_dir="log
     plt.ylabel('counts')
     f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
 
-# Define dataset class
-class LambdasDataset(DGLDataset):
+#------------------------- Classes -------------------------#
+
+class GraphDataset(DGLDataset):
+
+    """
+    Attributes
+    ----------
+
+    Methods
+    -------
+
+    """
+
     _url = None
     _sha1_str = None
     mode = "mode"
-    num_classes = 2
-    dataset = None
 
-    def __init__(self, name, dataset=None, raw_dir=None, force_reload=False, verbose=False):
-        self.dataset = dataset
-        super(LambdasDataset, self).__init__(name=name,
+    def __init__(
+        self,
+        name="dataset",
+        dataset=None,
+        inGraphs=None,
+        inLabels=None,
+        raw_dir=None,
+        mode="mode",
+        url=None,
+        force_reload=False,
+        verbose=False,
+        num_classes=2
+        ):
+
+        """
+        Parameters
+        ----------
+        name : str, optional
+            Default : "dataset".
+        inGraphs : Tensor(dgl.HeteroGraph), optional
+            Default : None.
+        inLabels= : Tensor, optional
+            Default : None.
+        raw_dir : str, optional
+            Default : None.
+        mode : str, optional
+            Default : "mode".
+        url : str, optional
+            Default : None.
+        force_reload : bool, optional
+            Default : False.
+        verbose : bool, optional
+            Default : False.
+        num_classes : int, optional
+            Default : 2.
+
+        Examples
+        --------
+
+        Notes
+        -----
+        
+        """
+        
+        self.inGraphs = inGraphs #NOTE: Set these BEFORE calling super.
+        self.inLabels = inLabels
+        self._url = url
+        self.mode = mode
+        self.num_classes = num_classes #NOTE: IMPORTANT! You need the self.num_classes variable for the builtin methods of DGLDataset to work!
+        super(GraphDataset, self).__init__(name=name,
                                           url=self._url,
                                           raw_dir=raw_dir,
                                           force_reload=force_reload,
-                                          verbose=verbose)
-
+                                          verbose=verbose
+                                          )
+        
+        
     def process(self):
         mat_path = os.path.join(self.raw_path,self.mode+'_dgl_graph.bin')
-        # process data to a list of graphs and a list of labels
-        if self.dataset != None:
-            self.graphs, self.labels = self.dataset["data"], torch.LongTensor(self.dataset["target"])
+        #NOTE: process data to a list of graphs and a list of labels
+        if self.inGraphs is not None and self.inLabels is not None:
+            self.graphs, self.labels = self.inGraphs, torch.LongTensor(self.inLabels)
         else:
             self.graphs, self.labels = load_graphs(mat_path)
 
@@ -1054,4 +1723,4 @@ class LambdasDataset(DGLDataset):
     @property
     def num_labels(self):
         """Number of labels for each graph, i.e. number of prediction tasks."""
-        return 2
+        return self.num_classes

@@ -1,9 +1,7 @@
-###############################
-# Matthew McEneaney
-# 7/8/21
-###############################
-
-from __future__ import absolute_import, division, print_function
+#--------------------------------------------------#
+# Description: Main for DAGNN routine.
+# Author: Matthew McEneaney
+#--------------------------------------------------#
 
 # ML Imports
 import matplotlib.pyplot as plt
@@ -21,8 +19,8 @@ import torch.optim as optim
 import argparse, math, datetime, os, psutil, threading
 
 # Custom Imports
-from utils import load_graph_dataset, train, evaluate
-from models import GIN, HeteroGIN
+from utils import load_graph_dataset, train_dagnn#, evaluate_dagnn
+from models import GIN, HeteroGIN, MLP
 
 def main():
 
@@ -30,6 +28,8 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch GIN for graph classification')
     parser.add_argument('--dataset', type=str, default="gangelmc_10k_2021-07-22_noEtaOldChi2",
                         help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2)') #NOTE: Needs to be in ~/.dgl
+    parser.add_argument('--dom_dataset', type=str, default="gangelmc_10k_2021-07-22_noEtaOldChi2",
+                        help='name of domain dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2)') #NOTE: Needs to be in ~/.dgl
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--nworkers', type=int, default=0,
@@ -37,12 +37,12 @@ def main():
     parser.add_argument('--batch', type=int, default=256,
                         help='input batch size for training (default: 256)')
     parser.add_argument('--epochs', type=int, default=30,
-                        help='Number of epochs to train (default: 30)')
+                        help='Number of epochs to train (default: 100)')
     parser.add_argument('--lr', type=float, default=1e-3,
                         help='Learning rate (default: 1e-3)')
     parser.add_argument('--step', type=int, default=-1,
                         help='Learning rate step size (default: -1 for ReduceLROnPlateau, 0 uses ExponentialLR)')
-    parser.add_argument('--gamma', type=float, default=0.1,
+    parser.add_argument('--gamma', type=float, default=0.63,
                         help='Learning rate reduction factor (default: 0.63)')
     parser.add_argument('--thresh', type=float, default=1e-4,
                         help='Minimum change threshold for reducing lr on plateau (default: 1e-4)')
@@ -71,6 +71,10 @@ def main():
     # Output directory option
     parser.add_argument('--log', type=str, default='logs/',
                         help='Log directory for histograms (default: logs/)')
+    parser.add_argument('--log_interval', type=int, default=10,
+                        help='Logging interval for training and validation metrics (default: 10)')
+    parser.add_argument('--save_path', type=str, default='model',
+                        help='Name for file in which to save model (default: model)')
 
     # Early stopping options
     parser.add_argument('--min_delta', type=float, default=0.0,
@@ -83,6 +87,8 @@ def main():
     # Input dataset directory prefix option
     parser.add_argument('--prefix', type=str, default='',
                         help='Prefix for where dataset is stored (default: ~/.dgl/)')
+    parser.add_argument('--dom_prefix', type=str, default='',
+                        help='Prefix for where domain dataset is stored (default: ~/.dgl/)')
 
     # Input dataset train/val split
     parser.add_argument('--split', type=float, default=0.75,
@@ -100,37 +106,92 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
+    print("DEBUGGING: SEEDED DEVICE")
+
     # Setup data and model
-    train_dataloader, val_dataloader, nclasses, nfeatures, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+    train_loader, val_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
                                                     split=args.split, max_events=args.max_events,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
+    dom_train_loader, dom_val_loader, dom_nclasses, dom_nfeatures_node, dom_nfeatures_edge = load_graph_dataset(dataset=args.dom_dataset, prefix=args.dom_prefix, 
+                                                    split=args.split, max_events=args.max_events,
+                                                    num_workers=args.nworkers, batch_size=args.batch)
+
+    print("DEBUGGING: CREATED DATALOADERS")
+
+    # Check that # classes and data dimensionality at nodes and edges match between training and domain data
+    if nclasses!=dom_nclasses or nfeatures_node!=dom_nfeatures_node or nfeatures_edge!=dom_nfeatures_edge:
+        print("*** ERROR *** mismatch between graph structure for domain and training data!")
+        print("EXITING...")
+        return
+
+    n_domains = 2
+    nfeatures = nfeatures_node
     model = GIN(args.nlayers, args.nmlp, nfeatures,
-            args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
+            args.hdim, args.hdim, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)
+    classifier = MLP(args.nmlp, args.hdim, args.hdim, nclasses).to(device)
+    discriminator = MLP(args.nmlp, args.hdim, args.hdim, n_domains).to(device)
+    print("DEBUGGING: CREATED MODELS")
 
-    if args.hfdim > 0:
-        nkinematics = 6 #TODO: Automate this assignment.
-        model = HeteroGIN(args.nlayers, args.nmlp, nfeatures,
-            args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
-            args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
+    # if args.hfdim > 0:
+    #     nkinematics = 6 #TODO: Automate this assignment.
+    #     model = HeteroGIN(args.nlayers, args.nmlp, nfeatures,
+    #         args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
+    #         args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
 
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.gamma, patience=args.patience,
+    model_optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    classifier_optimizer = optim.Adam(classifier.parameters(), lr=args.lr)
+    discriminator_optimizer = optim.Adam(discriminator.parameters(), lr=args.lr)
+    print("DEBUGGING: CREATED OPTIMIZERS")
+
+    model_scheduler = optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, mode='min', factor=args.gamma, patience=args.patience,
         threshold=args.thresh, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=args.verbose)
     if args.step==0:
-        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, args.gamma, last_epoch=-1, verbose=args.verbose)
+        model_scheduler = optim.lr_scheduler.ExponentialLR(model_optimizer, args.gamma, last_epoch=-1, verbose=args.verbose)
     if args.step>0:
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma, verbose=args.verbose)
-    criterion = nn.CrossEntropyLoss()
+        model_scheduler = optim.lr_scheduler.StepLR(model_optimizer, step_size=args.step, gamma=args.gamma, verbose=args.verbose)
+    print("DEBUGGING: CREATED SCHEDULERS")
+
+    # Create loss functions
+    train_criterion = nn.CrossEntropyLoss()
+    dom_criterion   = nn.BCELoss()
+    print("DEBUGGING: CREATED LOSSES")
 
     # Setup log directory
-    try: os.mkdir(args.log)
-    except FileExistsError: print('Directory:',args.log,'already exists!')
+    try: os.makedirs(args.log)
+    except FileExistsError: print('Log directory: ',args.log,' already exists.')
+    print("DEBUGGING: DONE")
 
     # Train model
-    train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose)
-    # evaluate(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split, max_events=args.max_events, log_dir=args.log, verbose=args.verbose)
+    #train_dagnn(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose)
+    # return #DEBUGGING
+    train_dagnn(
+        args,
+        model,
+        classifier,
+        discriminator,
+        device,
+        train_loader,
+        val_loader,
+        dom_train_loader,
+        dom_val_loader,
+        model_optimizer,
+        classifier_optimizer,
+        discriminator_optimizer,
+        model_scheduler,
+        train_criterion,
+        dom_criterion,
+        # lambda_function,#TODO: Commented out for DEBUGGING
+        args.epochs,
+        dataset=args.dataset,
+        prefix=args.prefix,
+        log_interval=args.log_interval,
+        log_dir=args.log,
+        save_path=args.save_path,
+        verbose=args.verbose)
+    
+    #evaluate(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split, max_events=args.max_events, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
 if __name__ == '__main__':

@@ -15,6 +15,44 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+#------------------------- Models -------------------------#
+
+# Simple classifier and discriminator models from DAGNN PYTORCH example.
+class Classifier(nn.Module):
+    """
+        Classifier
+    """
+    def __init__(self, input_size=512, num_classes=10):
+        super(Classifier, self).__init__()
+        self.layer = nn.Sequential(
+            nn.Linear(input_size, 256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, num_classes),
+        )
+        
+    def forward(self, h):
+        c = self.layer(h)
+        return c
+    
+class Discriminator(nn.Module):
+    """
+        Simple Discriminator w/ MLP
+    """
+    def __init__(self, input_size=512, num_classes=1):
+        super(Discriminator, self).__init__()
+        self.layer = nn.Sequential(
+            nn.Linear(input_size, 256),
+            nn.LeakyReLU(0.2),
+            nn.Linear(256, 128),
+            nn.LeakyReLU(0.2),
+            nn.Linear(128, num_classes),
+            nn.Sigmoid(),
+        )
+    
+    def forward(self, h):
+        y = self.layer(h)
+        return y
+
 # GIN ARCHITECTURE
 
 """
@@ -43,8 +81,8 @@ class MLP(nn.Module):
     def __init__(self, num_layers, input_dim, hidden_dim, output_dim):
         """MLP layers construction
 
-        Paramters
-        ---------
+        Parameters
+        ----------
         num_layers: int
             The number of linear layers
         input_dim: int
@@ -98,8 +136,8 @@ class GIN(nn.Module):
                  neighbor_pooling_type):
         """model parameters setting
 
-        Paramters
-        ---------
+        Parameters
+        ----------
         num_layers: int
             The number of linear layers in the neural network
         num_mlp_layers: int
@@ -130,6 +168,7 @@ class GIN(nn.Module):
         self.batch_norms = torch.nn.ModuleList()
 
         for layer in range(self.num_layers - 1):
+            
             if layer == 0:
                 mlp = MLP(num_mlp_layers, input_dim, hidden_dim, hidden_dim)
             else:
@@ -194,8 +233,8 @@ class HeteroGIN(nn.Module):
                  neighbor_pooling_type, input_dim2, hidden_dim2, n_final_mlp):
         """model parameters setting
 
-        Paramters
-        ---------
+        Parameters
+        ----------
         num_layers: int
             The number of linear layers in the neural network
         num_mlp_layers: int

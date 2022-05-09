@@ -20,7 +20,7 @@ import argparse, math, datetime, os, psutil, threading
 
 # Custom Imports
 from utils import load_graph_dataset, train_dagnn#, evaluate_dagnn
-from models import GIN, HeteroGIN, MLP
+from models import GIN, HeteroGIN, MLP, Classifier, Discriminator
 
 def main():
 
@@ -95,8 +95,8 @@ def main():
                         help='Fraction of dataset to use for evaluation (default: 0.75)')
 
     # Input dataset train/val max total events
-    parser.add_argument('--max_events', type=float, default=1e5,
-                        help='Max number of train/val events to use (default: 1e5)')
+    parser.add_argument('--max_events', type=float, default=1e7,
+                        help='Max number of train/val events to use (default: 1e7)')
 
     args = parser.parse_args()
 
@@ -130,8 +130,13 @@ def main():
     model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, args.hdim, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)
-    classifier = MLP(args.nmlp, args.hdim, args.hdim, nclasses).to(device)
-    discriminator = MLP(args.nmlp, args.hdim, args.hdim, n_domains).to(device)
+    # classifier = MLP(args.nmlp, args.hdim, args.hdim, nclasses).to(device)
+    # discriminator = MLP(args.nmlp, args.hdim, args.hdim, n_domains-1).to(device) #NOTE: The n_domains - 1 is important since we use BCELoss.
+    #NOTE: ABOVE: NEED SIGMOID ACTIVATION AT END OF MLP's
+    classifier = Classifier(input_size=args.hdim,num_classes=nclasses).to(device)
+    discriminator = Discriminator(input_size=args.hdim,num_classes=n_domains-1).to(device)
+    #TODO: Make nn.sigmoid or activation function option.... for train validation steps.... or just add to model...
+    # classifier = Classifier
     print("DEBUGGING: CREATED MODELS")
 
     # if args.hfdim > 0:

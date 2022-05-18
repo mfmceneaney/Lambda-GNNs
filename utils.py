@@ -1189,7 +1189,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         # Logs for matplotlib plots
         logs = train(
                     model,
-                    device,
+                    args.device,
                     train_dataloader,
                     val_dataloader,
                     optimizer,
@@ -1205,11 +1205,11 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         # Get testing AUC
         auc = evaluate(
             model,
-            device,
-            dataset="", 
-            prefix="",
-            split=0.75,
-            max_events=1e10,
+            args.device,
+            dataset=args.dataset, 
+            prefix=args.prefix,
+            split=args.split,
+            max_events=args.max_events,
             log_dir=trial_dir,
             verbose=True
         )
@@ -1275,9 +1275,9 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
         # Create models
         model = GIN(nlayers, nmlp, nfeatures,
                 hdim, hdim, do, args.learn_eps, args.npooling,
-                args.gpooling).to(device)
-        classifier = Classifier(input_size=hdim,num_classes=nclasses).to(device)
-        discriminator = Discriminator(input_size=hdim,num_classes=n_domains-1).to(device)
+                args.gpooling).to(args.device)
+        classifier = Classifier(input_size=hdim,num_classes=nclasses).to(args.device)
+        discriminator = Discriminator(input_size=hdim,num_classes=n_domains-1).to(args.device)
 
         # Create optimizers
         model_optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -1313,7 +1313,7 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
                             model,
                             classifier,
                             discriminator,
-                            device,
+                            args.device,
                             train_loader,
                             val_loader,
                             dom_train_loader,
@@ -1341,22 +1341,22 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
         _model = GIN(nlayers, nmlp, nfeatures,
                 hdim, hdim, do, args.learn_eps, args.npooling,
                 args.gpooling).to(device)
-        _classifier = Classifier(input_size=hdim,num_classes=nclasses).to(device)
+        _classifier = Classifier(input_size=hdim,num_classes=nclasses).to(args.device)
         print("INFO: LOADING: ",os.path.join(trial_dir,args.name+'_model_weights'))#DEBUGGING
         print("INFO: LOADING: ",os.path.join(trial_dir,args.name+'_classifier_weights'))#DEBUGGING
-        _model.load_state_dict(torch.load(os.path.join(args.path,args.name+'_model_weights'),map_location=device))
-        _classifier.load_state_dict(torch.load(os.path.join(args.path,args.name+'_classifier_weights'),map_location=device))
+        _model.load_state_dict(torch.load(os.path.join(args.path,args.name+'_model_weights'),map_location=args.device))
+        _classifier.load_state_dict(torch.load(os.path.join(args.path,args.name+'_classifier_weights'),map_location=args.device))
 
         model_concatenate = models.Concatenate([ _model, _classifier])
 
         # Get testing AUC
         auc = evaluate(
             model_concatenate,
-            device,
-            dataset="", 
-            prefix="",
-            split=0.75,
-            max_events=1e10,
+            args.device,
+            dataset=args.dataset,
+            prefix=args.prefix,
+            split=args.split,
+            max_events=args.max_events,
             log_dir=trial_dir,
             verbose=True
         )

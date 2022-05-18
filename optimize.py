@@ -30,8 +30,8 @@ def main():
                         help='which device to use if any (default: \'cpu\')')
     parser.add_argument('--nworkers', type=int, default=0,
                         help='Number of dataloader workers (default: 0)')
-    parser.add_argument('--batch', type=int, nargs=2, default=[256,156],
-                        help='input batch size range for training (default: 256 156)')
+    parser.add_argument('--batch', type=int, nargs=2, default=[256,256],
+                        help='input batch size range for training (default: 256 256)')
     parser.add_argument('--epochs', type=int, default=100,
                         help='Number of epochs to train (default: 100)')
     parser.add_argument('--lr', type=float, nargs=2, default=[1e-5,1e-2],
@@ -62,9 +62,16 @@ def main():
                         help='Whether to use optuna pruner or not')
     parser.add_argument('--verbose', action="store_true",
                                     help='Print messages and graphs')
+
+    parser.add_argument('--thresh', type=float, default=1e-4,
+                    help='Minimum change threshold for reducing lr on plateau (default: 1e-4)')
+                    
     # Output directory option
     parser.add_argument('--log', type=str, default='logs/',
                         help='Log directory for histograms (default: logs/)')
+
+    parser.add_argument('--name', type=str, default='model', #NOTE: Corresponds to `--save_path` argument in training.
+                        help='Name for file in which to save model (default: model)')
     
     # Early stopping options
     parser.add_argument('--min_delta', type=float, default=1e-3,

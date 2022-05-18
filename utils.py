@@ -1188,6 +1188,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
 
         # Logs for matplotlib plots
         logs = train(
+                    args,
                     model,
                     args.device,
                     train_dataloader,

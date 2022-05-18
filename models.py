@@ -17,10 +17,30 @@ import torch.nn.functional as F
 
 #------------------------- Models -------------------------#
 
+# Concatenation model
+class Concatenate(nn.Module):
+    def __init__(self,models,name="Concatenate"):
+        super(Concatenate, self).__init__()
+        self.models = models
+        self.name = name
+    
+    def forward(self,x):
+        x1 = x #TODO: Use deepcopy here?
+        for m in self.models:
+            x1 = m(x1)
+        return x1
+
+    # @property
+    def name(self):
+        """
+        Name of model.
+        """
+        return self.name
+
 # Simple classifier and discriminator models from DAGNN PYTORCH example.
 class Classifier(nn.Module):
     """
-        Classifier
+    Classifier
     """
     def __init__(self, input_size=512, num_classes=10):
         super(Classifier, self).__init__()
@@ -29,11 +49,19 @@ class Classifier(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(256, num_classes),
         )
+        self.name = "Classifier"
         
     def forward(self, h):
         c = self.layer(h)
         return c
     
+    # @property
+    def name(self):
+        """
+        Name of model.
+        """
+        return self.name
+
 class Discriminator(nn.Module):
     """
         Simple Discriminator w/ MLP
@@ -48,10 +76,19 @@ class Discriminator(nn.Module):
             nn.Linear(128, num_classes),
             nn.Sigmoid(),
         )
+
+        self.name = "Discriminator"
     
     def forward(self, h):
         y = self.layer(h)
         return y
+    
+    # @property
+    def name(self):
+        """
+        Name of model.
+        """
+        return self.name
 
 # GIN ARCHITECTURE
 
@@ -336,5 +373,3 @@ class HeteroGIN(nn.Module):
     def name(self):
         """Name of model."""
         return "HeteroGIN"
-
-

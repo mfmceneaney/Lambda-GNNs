@@ -18,14 +18,16 @@ import torch.optim as optim
 import argparse, math, datetime, os, psutil, threading
 
 # Custom Imports
-from utils import optimization_study
+from utils import optimization_study_dagnn
 
 def main():
 
     # Parse arguments
     parser = argparse.ArgumentParser(description='PyTorch GIN for graph classification')
-    parser.add_argument('--dataset', type=str, default="gangelmc_10k_2021-07-22_noEtaOldChi2",
-                        help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2) note: Needs to be in ~/.dgl')
+    parser.add_argument('--dataset', type=str, default="dataset",
+                        help='name of dataset (default: dataset)') #NOTE: Needs to be in ~/.dgl
+    parser.add_argument('--dom_dataset', type=str, default="dataset",
+                        help='name of domain dataset (default: dataset)') #NOTE: Needs to be in ~/.dgl
     parser.add_argument('--device', type=str, default='cpu',
                         help='which device to use if any (default: \'cpu\')')
     parser.add_argument('--nworkers', type=int, default=0,
@@ -40,6 +42,8 @@ def main():
                         help='Learning rate step size range (default: 10 10)')
     parser.add_argument('--gamma', type=float, nargs=2, default=[0.63,0.63],
                         help='Learning rate reduction factor range (default: 0.63 0.63)')
+    parser.add_argument('--thresh', type=float, default=1e-4,
+                        help='Minimum change threshold for reducing lr on plateau (default: 1e-4)')
     parser.add_argument('--nlayers', type=int, nargs=2, default=[4,4],
                         help='Number of model layers range (default: 4 4)')
     parser.add_argument('--nmlp', type=int, nargs=2, default=[3,3],
@@ -54,12 +58,7 @@ def main():
                         help='Pooling type over neighboring nodes: sum, mean or max')
     parser.add_argument('--learn_eps', action="store_true",
                                         help='Whether to learn the epsilon weighting for the center nodes. Does not affect training accuracy though.')
-    parser.add_argument('--ntrials', type=int, default=100,
-                        help='Number of study trials (default: 100)')
-    parser.add_argument('--timeout', type=int, default=864000,
-                        help='Max wait time for improvement in trials (default: 864000)')
-    parser.add_argument('--pruning', action="store_true",
-                        help='Whether to use optuna pruner or not')
+    
     parser.add_argument('--verbose', action="store_true",
                                     help='Print messages and graphs')
     # Output directory option
@@ -74,15 +73,11 @@ def main():
     parser.add_argument('--patience', type=int, default=10,
                         help='Number of epochs to wait for early stopping (default: 10)')
 
-    # Distributed training options
-    parser.add_argument('--study_name', type=str, default='distributed-study',
-                        help='Name for distributed study (default: distributed-study)')
-    parser.add_argument('--db_path', type=str, default='example.db',
-                        help='Path to sqlite database for distributed study (default: example.db)')
-
     # Input dataset directory prefix option
     parser.add_argument('--prefix', type=str, default='',
                         help='Prefix for where dataset is stored (default: ~/.dgl/)')
+    parser.add_argument('--dom_prefix', type=str, default='',
+                        help='Prefix for where domain dataset is stored (default: ~/.dgl/)')
 
     # Input dataset train/val split
     parser.add_argument('--split', type=float, default=0.75,
@@ -91,6 +86,18 @@ def main():
     # Input dataset train/val max total events
     parser.add_argument('--max_events', type=float, default=1e5,
                         help='Max number of train/val events to use (default: 1e5)')
+
+    # Distributed training options
+    parser.add_argument('--study_name', type=str, default='distributed-study',
+                        help='Name for distributed study (default: distributed-study)')
+    parser.add_argument('--db_path', type=str, default=None,
+                        help='Path to sqlite database for distributed study (default: None)')
+    parser.add_argument('--ntrials', type=int, default=100,
+                        help='Number of study trials (default: 100)')
+    parser.add_argument('--timeout', type=int, default=864000,
+                        help='Max wait time for improvement in trials (default: 864000)')
+    parser.add_argument('--pruning', action="store_true",
+                        help='Whether to use optuna pruner or not')
 
     args = parser.parse_args()
 
@@ -108,7 +115,7 @@ def main():
     except Exception: print('Could not create database for distributed optimization')
 
     # Run optimization study
-    optimization_study(args)
+    optimization_study_dagnn(args)
 
 if __name__ == '__main__':
 

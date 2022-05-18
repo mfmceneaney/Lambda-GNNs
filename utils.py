@@ -43,7 +43,7 @@ from scipy.stats import crystalball
 import datetime, os, itertools
 
 # Local Imports
-from models import GIN, HeteroGIN
+from models import GIN, HeteroGIN, Classifier, Discriminator, MLP
 
 #------------------------- Functions -------------------------#
 

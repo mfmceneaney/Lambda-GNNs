@@ -436,7 +436,7 @@ def train(
     tb_logger.close() #IMPORTANT!
     if save_path!="":
         torch.save(model.to('cpu').state_dict(), os.path.join(log_dir,save_path+"_weights")) #NOTE: Save to cpu state so you can test more easily.
-        torch.save(model.to('cpu'), os.path.join(log_dir,save_path)) #NOTE: Save to cpu state so you can test more easily.
+        # torch.save(model.to('cpu'), os.path.join(log_dir,save_path)) #NOTE: Save to cpu state so you can test more easily.
    
     # Create training/validation loss plot
     f = plt.figure()
@@ -1204,7 +1204,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
                     )
 
         # Get testing AUC
-        auc = evaluate(
+        metrics = evaluate(
             model,
             args.device,
             dataset=args.dataset, 
@@ -1215,7 +1215,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
             verbose=True
         )
 
-        return auc
+        return metrics[0]
 
     #----- MAIN PART -----#
     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
@@ -1351,7 +1351,7 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
         model_concatenate = models.Concatenate([ _model, _classifier])
 
         # Get testing AUC
-        auc = evaluate(
+        metrics = evaluate(
             model_concatenate,
             args.device,
             dataset=args.dataset,
@@ -1362,7 +1362,7 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
             verbose=True
         )
 
-        return auc
+        return metrics[0]
 
     #----- MAIN PART -----#
     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()

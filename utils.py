@@ -1198,7 +1198,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
                     args.epochs,
                     dataset=args.dataset,
                     prefix=args.prefix,
-                    log_dir=trial_dir,
+                    log_dir=trialdir,
                     verbose=args.verbose
                     )
 
@@ -1210,7 +1210,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
             prefix=args.prefix,
             split=args.split,
             max_events=args.max_events,
-            log_dir=trial_dir,
+            log_dir=trialdir,
             verbose=True
         )
 
@@ -1329,7 +1329,7 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
                             dataset=args.dataset,
                             prefix=args.prefix,
                             log_interval=args.log_interval,
-                            log_dir=trial_dir,
+                            log_dir=trialdir,
                             save_path=args.save_path,
                             verbose=args.verbose
                         )
@@ -1342,8 +1342,8 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
                 hdim, hdim, do, args.learn_eps, args.npooling,
                 args.gpooling).to(device)
         _classifier = Classifier(input_size=hdim,num_classes=nclasses).to(args.device)
-        print("INFO: LOADING: ",os.path.join(trial_dir,args.name+'_model_weights'))#DEBUGGING
-        print("INFO: LOADING: ",os.path.join(trial_dir,args.name+'_classifier_weights'))#DEBUGGING
+        print("INFO: LOADING: ",os.path.join(trialdir,args.name+'_model_weights'))#DEBUGGING
+        print("INFO: LOADING: ",os.path.join(trialdir,args.name+'_classifier_weights'))#DEBUGGING
         _model.load_state_dict(torch.load(os.path.join(args.path,args.name+'_model_weights'),map_location=args.device))
         _classifier.load_state_dict(torch.load(os.path.join(args.path,args.name+'_classifier_weights'),map_location=args.device))
 
@@ -1357,7 +1357,7 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
             prefix=args.prefix,
             split=args.split,
             max_events=args.max_events,
-            log_dir=trial_dir,
+            log_dir=trialdir,
             verbose=True
         )
 

@@ -71,6 +71,8 @@ def main():
                         help='Log directory for histograms (default: logs/)')
     parser.add_argument('--log_interval', type=int, default=10,
                         help='Logging interval for training and validation metrics (default: 10)')
+    parser.add_argument('--save_path', type=str, default='model',
+                        help='Name for file in which to save model (default: model)')
 
     parser.add_argument('--name', type=str, default='model', #NOTE: Corresponds to `--save_path` argument in training.
                         help='Name for file in which to save model (default: model)')

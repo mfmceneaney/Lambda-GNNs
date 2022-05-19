@@ -840,7 +840,8 @@ def train_dagnn(
         trainer,
         event_name=Events.EPOCH_COMPLETED,
         tag="training",
-        metric_names=["train_loss","train_accuracy","train_roc_auc","dom_loss","dom_accuracy","dom_roc_auc"],
+        metric_names=["train_loss","train_accuracy","dom_loss","dom_accuracy"],
+        # metric_names=["train_loss","train_accuracy","train_roc_auc","dom_loss","dom_accuracy","dom_roc_auc"], #NOTE: TODO: OLD
         global_step_transform=global_step_from_engine(trainer),
     )
 
@@ -849,7 +850,8 @@ def train_dagnn(
         evaluator,
         event_name=Events.EPOCH_COMPLETED,
         tag="validation",
-        metric_names=["train_loss","train_accuracy","train_roc_auc","dom_loss","dom_accuracy","dom_roc_auc"],
+        metric_names=["train_loss","train_accuracy","dom_loss","dom_accuracy"],
+        # metric_names=["train_loss","train_accuracy","train_roc_auc","dom_loss","dom_accuracy","dom_roc_auc"], #NOTE: TODO: OLD
         global_step_transform=global_step_from_engine(evaluator)
     )
 

@@ -1341,16 +1341,17 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
         # Setup data and model
         nclasses, nfeatures, nfeatures_edge = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix)
 
-        _model = GIN(nlayers, nmlp, nfeatures,
-                hdim, hdim, do, args.learn_eps, args.npooling,
-                args.gpooling).to(args.device)
-        _classifier = Classifier(input_size=hdim,num_classes=nclasses).to(args.device)
-        print("INFO: LOADING: ",os.path.join(trialdir,args.name+'_model_weights'))#DEBUGGING
-        print("INFO: LOADING: ",os.path.join(trialdir,args.name+'_classifier_weights'))#DEBUGGING
-        _model.load_state_dict(torch.load(os.path.join(args.path,args.name+'_model_weights'),map_location=args.device))
-        _classifier.load_state_dict(torch.load(os.path.join(args.path,args.name+'_classifier_weights'),map_location=args.device))
+        # _model = GIN(nlayers, nmlp, nfeatures,
+        #         hdim, hdim, do, args.learn_eps, args.npooling,
+        #         args.gpooling).to(args.device)
+        # _classifier = Classifier(input_size=hdim,num_classes=nclasses).to(args.device)
+        # print("INFO: LOADING: ",os.path.join(trialdir,args.name+'_model_weights'))#DEBUGGING
+        # print("INFO: LOADING: ",os.path.join(trialdir,args.name+'_classifier_weights'))#DEBUGGING
+        # _model.load_state_dict(torch.load(os.path.join(trialdir,args.name+'_model_weights'),map_location=args.device))
+        # _classifier.load_state_dict(torch.load(os.path.join(trialdir,args.name+'_classifier_weights'),map_location=args.device))
 
-        model_concatenate = models.Concatenate([ _model, _classifier])
+        model_concatenate = models.Concatenate([ model, classifier])
+        model_concatenate.eval()
 
         # Get testing AUC
         metrics = evaluate(

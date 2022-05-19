@@ -1341,7 +1341,7 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
 
         _model = GIN(nlayers, nmlp, nfeatures,
                 hdim, hdim, do, args.learn_eps, args.npooling,
-                args.gpooling).to(device)
+                args.gpooling).to(args.device)
         _classifier = Classifier(input_size=hdim,num_classes=nclasses).to(args.device)
         print("INFO: LOADING: ",os.path.join(trialdir,args.name+'_model_weights'))#DEBUGGING
         print("INFO: LOADING: ",os.path.join(trialdir,args.name+'_classifier_weights'))#DEBUGGING

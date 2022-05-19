@@ -43,7 +43,7 @@ from scipy.stats import crystalball
 import datetime, os, itertools
 
 # Local Imports
-from models import GIN, HeteroGIN, Classifier, Discriminator, MLP
+from models import GIN, HeteroGIN, Classifier, Discriminator, MLP, Concatenate
 
 #------------------------- Functions -------------------------#
 
@@ -1350,7 +1350,7 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
         # _model.load_state_dict(torch.load(os.path.join(trialdir,args.name+'_model_weights'),map_location=args.device))
         # _classifier.load_state_dict(torch.load(os.path.join(trialdir,args.name+'_classifier_weights'),map_location=args.device))
 
-        model_concatenate = models.Concatenate([ model, classifier])
+        model_concatenate = Concatenate([ model, classifier])
         model_concatenate.eval()
 
         # Get testing AUC

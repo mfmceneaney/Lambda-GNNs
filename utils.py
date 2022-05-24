@@ -578,8 +578,8 @@ def train_dagnn(
         # Get predictions and loss from data and labels
         x, label     = batch
         train_labels = label[:,0].clone().detach().long() #NOTE: This assumes labels is 2D.
-        x            = x.to(device)
-        train_labels = train_labels.to(device)
+        # x            = x.to(device)
+        # train_labels = train_labels.to(device)
 
         # Concatenate classification data and domain data
         x = dgl.unbatch(x)
@@ -587,6 +587,11 @@ def train_dagnn(
         nLabelled   = len(x)
         nUnlabelled = len(tgt)
         x.extend(tgt)
+
+        # Move data to same device as model
+        x            = x.to(device)
+        train_labels = train_labels.to(device)
+
         # for el in tgt: #NOTE: Append test domain data since concatenation doesn't work.
         #     x.append(el)
         x = dgl.batch(x) #NOTE: Training and domain data must have the same schema for this to work.
@@ -667,8 +672,8 @@ def train_dagnn(
             # Get predictions and loss from data and labels
             x, label     = batch
             train_labels = label[:,0].clone().detach().long() #NOTE: This assumes labels is 2D.
-            x            = x.to(device)
-            train_labels = train_labels.to(device)
+            # x            = x.to(device)
+            # train_labels = train_labels.to(device)
 
             # Concatenate classification data and domain data
             x = dgl.unbatch(x)
@@ -676,6 +681,11 @@ def train_dagnn(
             nLabelled   = len(x)
             nUnlabelled = len(tgt)
             x.extend(tgt)
+
+            # Move data to same device as model
+            x            = x.to(device)
+            train_labels = train_labels.to(device)
+
             # for el in tgt: #NOTE: Append test domain data since concatenation doesn't work.
             #     x.append(el)
             x = dgl.batch(x) #NOTE: Training and domain data must have the same schema for this to work.
@@ -1219,7 +1229,7 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
         # Get testing AUC
         metrics = evaluate(
             model,
-            args.device,
+            device,
             dataset=args.dataset, 
             prefix=args.prefix,
             split=args.split,
@@ -1373,7 +1383,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         # Get testing AUC
         metrics = evaluate(
             model_concatenate,
-            args.device,
+            device,
             dataset=args.dataset,
             prefix=args.prefix,
             split=args.split,

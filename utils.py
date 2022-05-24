@@ -578,8 +578,8 @@ def train_dagnn(
         # Get predictions and loss from data and labels
         x, label     = batch
         train_labels = label[:,0].clone().detach().long() #NOTE: This assumes labels is 2D.
-        # x            = x.to(device)
-        # train_labels = train_labels.to(device)
+        x            = x.to(device)
+        train_labels = train_labels.to(device)
 
         # Concatenate classification data and domain data
         x = dgl.unbatch(x)
@@ -588,9 +588,9 @@ def train_dagnn(
         nUnlabelled = len(tgt)
         x.extend(tgt)
 
-        # Move data to same device as model
-        x            = x.to(device)
-        train_labels = train_labels.to(device)
+        # # Move data to same device as model
+        # x            = x.to(device)
+        # train_labels = train_labels.to(device)
 
         # for el in tgt: #NOTE: Append test domain data since concatenation doesn't work.
         #     x.append(el)
@@ -672,8 +672,8 @@ def train_dagnn(
             # Get predictions and loss from data and labels
             x, label     = batch
             train_labels = label[:,0].clone().detach().long() #NOTE: This assumes labels is 2D.
-            # x            = x.to(device)
-            # train_labels = train_labels.to(device)
+            x            = x.to(device)
+            train_labels = train_labels.to(device)
 
             # Concatenate classification data and domain data
             x = dgl.unbatch(x)
@@ -682,9 +682,9 @@ def train_dagnn(
             nUnlabelled = len(tgt)
             x.extend(tgt)
 
-            # Move data to same device as model
-            x            = x.to(device)
-            train_labels = train_labels.to(device)
+            # # Move data to same device as model
+            # x            = x.to(device)
+            # train_labels = train_labels.to(device)
 
             # for el in tgt: #NOTE: Append test domain data since concatenation doesn't work.
             #     x.append(el)

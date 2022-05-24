@@ -1175,7 +1175,7 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
                                                     num_workers=args.nworkers, batch_size=batch_size)
 
         # Instantiate model, optimizer, scheduler, and loss
-        model = GIN(nlayers,nmlp,nfeatures,hdim,nclasses,do,args.learn_eps,args.npooling,args.gpooling).to(args.device)
+        model = GIN(nlayers,nmlp,nfeatures,hdim,nclasses,do,args.learn_eps,args.npooling,args.gpooling).to(device)
         # Make models parallel if multiple gpus available
         if device.type=='cuda' and device.index==None:
             model = DataParallel(model)
@@ -1203,7 +1203,7 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
         logs = train(
                     args,
                     model,
-                    args.device,
+                    device,
                     train_dataloader,
                     val_dataloader,
                     optimizer,
@@ -1289,9 +1289,9 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         # Create models
         model = GIN(nlayers, nmlp, nfeatures,
                 hdim, hdim, do, args.learn_eps, args.npooling,
-                args.gpooling).to(args.device)
-        classifier = Classifier(input_size=hdim,num_classes=nclasses).to(args.device)
-        discriminator = Discriminator(input_size=hdim,num_classes=n_domains-1).to(args.device)
+                args.gpooling).to(device)
+        classifier = Classifier(input_size=hdim,num_classes=nclasses).to(device)
+        discriminator = Discriminator(input_size=hdim,num_classes=n_domains-1).to(device)
 
         # Make models parallel if multiple gpus available
         if device.type=='cuda' and device.index==None:
@@ -1333,7 +1333,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
                             model,
                             classifier,
                             discriminator,
-                            args.device,
+                            device,
                             train_loader,
                             val_loader,
                             dom_train_loader,
@@ -1360,8 +1360,8 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
 
         # _model = GIN(nlayers, nmlp, nfeatures,
         #         hdim, hdim, do, args.learn_eps, args.npooling,
-        #         args.gpooling).to(args.device)
-        # _classifier = Classifier(input_size=hdim,num_classes=nclasses).to(args.device)
+        #         args.gpooling).to(device)
+        # _classifier = Classifier(input_size=hdim,num_classes=nclasses).to(device)
         # print("INFO: LOADING: ",os.path.join(trialdir,args.name+'_model_weights'))#DEBUGGING
         # print("INFO: LOADING: ",os.path.join(trialdir,args.name+'_classifier_weights'))#DEBUGGING
         # _model.load_state_dict(torch.load(os.path.join(trialdir,args.name+'_model_weights'),map_location=args.device))

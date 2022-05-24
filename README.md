@@ -6,6 +6,9 @@ Check out [How Powerful Are Graph Neural Nets?](https://github.com/weihua916/pow
 
 Required python modules (all available with pip) are listed in `requirements.txt`.
 
+# Installing the right version of PyTorch
+Follow this link: [PyTorch Get Started Locallly](https://pytorch.org/get-started/locally/).
+
 #
 
 Contact: matthew.mceneaney@duke.edu

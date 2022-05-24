@@ -254,7 +254,8 @@ def train(
         if verbose: print("Could not create directory:",os.path.join(log_dir,"tb_logs/tmp"))
 
     # Make model parallel if training with multiple gpus
-    if torch.device
+    if device.type=='cuda' and device.index==None:
+        model = DataParallel(model)
 
     # Show model if requested
     if verbose: print(model)
@@ -543,6 +544,10 @@ def train_dagnn(
         os.makedirs(log_dir+"tb_logs/tmp") #NOTE: Do NOT use os.path.join() here since it requires that the directory exist.
     except Exception:
         if verbose: print("Could not create directory:",os.path.join(log_dir,"tb_logs/tmp"))
+
+    # Make model parallel if training with multiple gpus
+    if device.type=='cuda' and device.index==None:
+        model = DataParallel(model)
 
     # Show model if requested
     if verbose: print(model)
@@ -1291,7 +1296,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         # Make models parallel if multiple gpus available
         if device.type=='cuda' and device.index==None:
             model = DataParallel(model)
-            classifier = DataParllel(classifier)
+            classifier = DataParallel(classifier)
             discriminator = DataParallel(discriminator)
 
         # Create optimizers

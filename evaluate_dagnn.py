@@ -13,6 +13,7 @@ from dgl.dataloading import GraphDataLoader
 
 # PyTorch Imports
 import torch
+from torch.nn import DataParallel
 
 # Utility Imports
 import argparse, os
@@ -82,7 +83,7 @@ def main():
 
     # Set up and seed devices
     torch.manual_seed(0)
-    device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
@@ -99,6 +100,11 @@ def main():
     _classifier.load_state_dict(torch.load(os.path.join(args.path,args.name+'_classifier_weights'),map_location=device))
 
     model = models.Concatenate([ _model, _classifier])
+
+    # Make models parallel if multiple gpus available
+    if device.type=='cuda' and device.index==None:
+        model = DataParallel(model)
+        # classifier = DataParallel(classifier)
 
     # if args.hfdim > 0:
     #     nkinematics = 6 #TODO: Automate this assignment.

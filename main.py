@@ -16,6 +16,7 @@ from dgl.dataloading import GraphDataLoader
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.nn import DataParallel
 
 # Utility Imports
 import argparse, math, datetime, os, psutil, threading
@@ -114,6 +115,9 @@ def main():
         model = HeteroGIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
             args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
+
+    if device.type=='cuda' and device.index==None:
+        model = DataParallel(model)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.gamma, patience=args.patience,

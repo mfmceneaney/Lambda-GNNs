@@ -16,13 +16,13 @@ import dgl #NOTE: for dgl.batch and dgl.unbatch
 from dgl import save_graphs, load_graphs
 from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
-from dgl.data.utils import save_info, load_info
+from dgl.data.utils import save_info, load_info, Subset
 
 # PyTorch Imports
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from dgl.data.utils import Subset
+from torch.nn import DataParallel
 
 # PyTorch Ignite Imports
 from ignite.engine import Engine, Events, EventEnum, create_supervised_trainer, create_supervised_evaluator
@@ -252,6 +252,9 @@ def train(
         os.makedirs(log_dir+"tb_logs/tmp") #NOTE: Do NOT use os.path.join() here since it requires that the directory exist.
     except Exception:
         if verbose: print("Could not create directory:",os.path.join(log_dir,"tb_logs/tmp"))
+
+    # Make model parallel if training with multiple gpus
+    if torch.device
 
     # Show model if requested
     if verbose: print(model)
@@ -1140,7 +1143,7 @@ def evaluate(model,device,dataset="", prefix="", split=0.75, max_events=1e10, lo
 
     return (test_acc,auc) #NOTE: Needed for optimization_study() below.
 
-def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
+def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
     #NOTE: As of right now log_dir='logs/' should end with the slash
 
     # Load validation data
@@ -1168,6 +1171,9 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
 
         # Instantiate model, optimizer, scheduler, and loss
         model = GIN(nlayers,nmlp,nfeatures,hdim,nclasses,do,args.learn_eps,args.npooling,args.gpooling).to(args.device)
+        # Make models parallel if multiple gpus available
+        if device.type=='cuda' and device.index==None:
+            model = DataParallel(model)
         optimizer = optim.Adam(model.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=gamma, patience=args.patience,
             threshold=args.thresh, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=args.verbose)
@@ -1236,7 +1242,7 @@ def optimization_study(args,log_interval=10,log_dir="logs/",save_path="torch_mod
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
+def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
     #NOTE: As of right now log_dir='logs/' should end with the slash
 
     # Load validation data
@@ -1281,6 +1287,12 @@ def optimization_study_dagnn(args,log_interval=10,log_dir="logs/",save_path="tor
                 args.gpooling).to(args.device)
         classifier = Classifier(input_size=hdim,num_classes=nclasses).to(args.device)
         discriminator = Discriminator(input_size=hdim,num_classes=n_domains-1).to(args.device)
+
+        # Make models parallel if multiple gpus available
+        if device.type=='cuda' and device.index==None:
+            model = DataParallel(model)
+            classifier = DataParllel(classifier)
+            discriminator = DataParallel(discriminator)
 
         # Create optimizers
         model_optimizer = optim.Adam(model.parameters(), lr=lr)

@@ -14,6 +14,7 @@ from dgl.dataloading import GraphDataLoader
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.nn import DataParallel
 
 # Utility Imports
 import argparse, math, datetime, os, psutil, threading
@@ -102,7 +103,7 @@ def main():
 
     # Set up and seed devices
     torch.manual_seed(0)
-    device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
@@ -138,6 +139,12 @@ def main():
     #TODO: Make nn.sigmoid or activation function option.... for train validation steps.... or just add to model...
     # classifier = Classifier
     print("DEBUGGING: CREATED MODELS")
+
+    # Make models parallel if multiple gpus available
+    if device.type=='cuda' and device.index==None:
+        model = DataParallel(model)
+        classifier = DataParallel(classifier)
+        discriminator = DataParallel(discriminator)
 
     # if args.hfdim > 0:
     #     nkinematics = 6 #TODO: Automate this assignment.

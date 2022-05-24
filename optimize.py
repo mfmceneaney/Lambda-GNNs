@@ -13,6 +13,7 @@ from dgl.dataloading import GraphDataLoader
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.nn import DataParallel
 
 # Utility Imports
 import argparse, math, datetime, os, psutil, threading
@@ -119,7 +120,7 @@ def main():
     except Exception: print('Could not create database for distributed optimization')
 
     # Run optimization study
-    optimization_study(args)
+    optimization_study(args,device=device)
 
 if __name__ == '__main__':
 

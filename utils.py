@@ -1281,31 +1281,31 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
     test_dataset.load()
     test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split),len(test_dataset))) #NOTE: This is currently same as validation data...
 
-    def setup(rank, world_size,method="gloo"):
-        os.environ['MASTER_ADDR'] = 'localhost'
-        os.environ['MASTER_PORT'] = '12355'
+    # def setup(rank, world_size,method="gloo"):
+    #     os.environ['MASTER_ADDR'] = 'localhost'
+    #     os.environ['MASTER_PORT'] = '12355'
 
-        # initialize the process group
-        dist.init_process_group(method, rank=rank, world_size=world_size)
+    #     # initialize the process group
+    #     dist.init_process_group(method, rank=rank, world_size=world_size)
 
-    def cleanup():
-        dist.destroy_process_group()
+    # def cleanup():
+    #     dist.destroy_process_group()
     
-    def fn_to_dist(rank, world_size):
+    # def fn_to_dist(rank, world_size):
 
-        print(f"Running basic DDP example on rank {rank}.")
-        setup(rank, world_size)
+    #     print(f"Running basic DDP example on rank {rank}.")
+    #     setup(rank, world_size)
 
-        fn_to_dist(**kwargs)#NOTE: Replace with train or train_dagnn
+    #     fn_to_dist(**kwargs)#NOTE: Replace with train or train_dagnn
 
-        cleanup()
+    #     cleanup()
 
 
-    def run_dist(fn_to_dist, world_size, **kwargs): #NOTE: wrap train or train_dagnn in run_dist
-        mp.spawn(fn_to_dist,
-                args=(world_size, **kwargs,),
-                nprocs=world_size,
-                join=True)
+    # def run_dist(fn_to_dist, world_size, **kwargs): #NOTE: wrap train or train_dagnn in run_dist
+    #     mp.spawn(fn_to_dist,
+    #             args=(world_size, **kwargs,),
+    #             nprocs=world_size,
+    #             join=True)
 
     def objective(trial):
 

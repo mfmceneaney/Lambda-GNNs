@@ -101,10 +101,10 @@ def main():
 
     model = models.Concatenate([ _model, _classifier])
 
-    # Make models parallel if multiple gpus available
-    if device.type=='cuda' and device.index==None:
-        model = DataParallel(model)
-        # classifier = DataParallel(classifier)
+    # # Make models parallel if multiple gpus available
+    # if device.type=='cuda' and device.index==None:
+    #     model = DataParallel(model)
+    #     # classifier = DataParallel(classifier)
 
     # if args.hfdim > 0:
     #     nkinematics = 6 #TODO: Automate this assignment.

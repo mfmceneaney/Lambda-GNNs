@@ -140,11 +140,11 @@ def main():
     # classifier = Classifier
     print("DEBUGGING: CREATED MODELS")
 
-    # Make models parallel if multiple gpus available
-    if device.type=='cuda' and device.index==None:
-        model = DataParallel(model)
-        classifier = DataParallel(classifier)
-        discriminator = DataParallel(discriminator)
+    # # Make models parallel if multiple gpus available
+    # if device.type=='cuda' and device.index==None:
+    #     model = DataParallel(model)
+    #     classifier = DataParallel(classifier)
+    #     discriminator = DataParallel(discriminator)
 
     # if args.hfdim > 0:
     #     nkinematics = 6 #TODO: Automate this assignment.

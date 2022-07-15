@@ -116,8 +116,8 @@ def main():
             args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
             args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
 
-    if device.type=='cuda' and device.index==None:
-        model = DataParallel(model)
+    # if device.type=='cuda' and device.index==None:
+    #     model = DataParallel(model)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.gamma, patience=args.patience,

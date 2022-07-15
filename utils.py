@@ -23,6 +23,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.nn import DataParallel
+import torch.distributed as dist
+import torch.multiprocessing as mp
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 # PyTorch Ignite Imports
 from ignite.engine import Engine, Events, EventEnum, create_supervised_trainer, create_supervised_evaluator
@@ -253,9 +256,9 @@ def train(
     except Exception:
         if verbose: print("Could not create directory:",os.path.join(log_dir,"tb_logs/tmp"))
 
-    # Make model parallel if training with multiple gpus
-    if device.type=='cuda' and device.index==None:
-        model = DataParallel(model)
+    # # Make model parallel if training with multiple gpus
+    # if device.type=='cuda' and device.index==None:
+    #     model = DataParallel(model)
 
     # Show model if requested
     if verbose: print(model)
@@ -276,6 +279,8 @@ def train(
         y      = y.to(device)
         y_pred = model(x)
         loss   = criterion(y_pred, y)
+
+        # Cleanup step
 
         # Step optimizer
         optimizer.zero_grad()
@@ -545,9 +550,9 @@ def train_dagnn(
     except Exception:
         if verbose: print("Could not create directory:",os.path.join(log_dir,"tb_logs/tmp"))
 
-    # Make model parallel if training with multiple gpus
-    if device.type=='cuda' and device.index==None:
-        model = DataParallel(model)
+    # # Make model parallel if training with multiple gpus
+    # if device.type=='cuda' and device.index==None:
+    #     model = DataParallel(model)
 
     # Show model if requested
     if verbose: print(model)
@@ -588,6 +593,8 @@ def train_dagnn(
         nUnlabelled = len(tgt)
         x.extend(tgt)
 
+        del tgt #NOTE: CLEANUP STEP: DEBUGGING
+
         # # Move data to same device as model
         # x            = x.to(device)
         # train_labels = train_labels.to(device)
@@ -598,6 +605,8 @@ def train_dagnn(
 
         # Get hidden representation from model on training and domain data
         h = model(x)
+
+        del x #NOTE: CLEANUP STEP: DEBUGGING
         
         # Step the domain discriminator on training and domain data
         dom_y = discriminator(h.detach())
@@ -610,6 +619,7 @@ def train_dagnn(
         # Step the classifier on training data
         train_y = classifier(h[:nLabelled]) #NOTE: Only train on labelled (i.e., training) data, not domain data.
         dom_y = discriminator(h)
+        del h #NOTE: CLEANUP STEP: DEBUGGING
         train_loss = train_criterion(train_y, train_labels)
         dom_loss   = dom_criterion(dom_y, dom_labels) #NOTE: Using nn.Sigmoid() is important since the predictions need to be in [0,1].
 
@@ -672,6 +682,7 @@ def train_dagnn(
             # Get predictions and loss from data and labels
             x, label     = batch
             train_labels = label[:,0].clone().detach().long() #NOTE: This assumes labels is 2D.
+            del label #NOTE: CLEANUP STEP: DEBUGGING
             x            = x.to(device)
             train_labels = train_labels.to(device)
 
@@ -681,6 +692,8 @@ def train_dagnn(
             nLabelled   = len(x)
             nUnlabelled = len(tgt)
             x.extend(tgt)
+
+            del tgt #NOTE: CLEANUP STEP: DEBUGGING
 
             # # Move data to same device as model
             # x            = x.to(device)
@@ -692,6 +705,8 @@ def train_dagnn(
 
             # Get hidden representation from model on training and domain data
             h = model(x)
+
+            del x #NOTE: CLEANUP STEP: DEBUGGING
             
             # Step the domain discriminator on training and domain data
             dom_y = discriminator(h.detach())
@@ -707,6 +722,7 @@ def train_dagnn(
             # Step the classifier on training data
             train_y = classifier(h[:nLabelled]) #NOTE: Only evaluate on labelled (i.e., training) data, not domain data.
             dom_y = discriminator(h)
+            del h #NOTE: CLEANUP STEP: DEBUGGING
             train_loss = train_criterion(train_y, train_labels)
             dom_loss   = dom_criterion(dom_y, dom_labels) #NOTE: Using activation like nn.Sigmoid() on discriminator is important since the predictions need to be in [0,1].
 
@@ -1187,8 +1203,8 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
         # Instantiate model, optimizer, scheduler, and loss
         model = GIN(nlayers,nmlp,nfeatures,hdim,nclasses,do,args.learn_eps,args.npooling,args.gpooling).to(device)
         # Make models parallel if multiple gpus available
-        if device.type=='cuda' and device.index==None:
-            model = DataParallel(model)
+        # if device.type=='cuda' and device.index==None:
+        #     model = DataParallel(model)
         optimizer = optim.Adam(model.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=gamma, patience=args.patience,
             threshold=args.thresh, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=args.verbose)
@@ -1265,6 +1281,32 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
     test_dataset.load()
     test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split),len(test_dataset))) #NOTE: This is currently same as validation data...
 
+    def setup(rank, world_size,method="gloo"):
+        os.environ['MASTER_ADDR'] = 'localhost'
+        os.environ['MASTER_PORT'] = '12355'
+
+        # initialize the process group
+        dist.init_process_group(method, rank=rank, world_size=world_size)
+
+    def cleanup():
+        dist.destroy_process_group()
+    
+    def fn_to_dist(rank, world_size):
+
+        print(f"Running basic DDP example on rank {rank}.")
+        setup(rank, world_size)
+
+        fn_to_dist(**kwargs)#NOTE: Replace with train or train_dagnn
+
+        cleanup()
+
+
+    def run_dist(fn_to_dist, world_size, **kwargs): #NOTE: wrap train or train_dagnn in run_dist
+        mp.spawn(fn_to_dist,
+                args=(world_size, **kwargs,),
+                nprocs=world_size,
+                join=True)
+
     def objective(trial):
 
         # Get parameter suggestions for trial
@@ -1303,11 +1345,11 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         classifier = Classifier(input_size=hdim,num_classes=nclasses).to(device)
         discriminator = Discriminator(input_size=hdim,num_classes=n_domains-1).to(device)
 
-        # Make models parallel if multiple gpus available
-        if device.type=='cuda' and device.index==None:
-            model = DataParallel(model)
-            classifier = DataParallel(classifier)
-            discriminator = DataParallel(discriminator)
+        # # Make models parallel if multiple gpus available
+        # if device.type=='cuda' and device.index==None:
+        #     model = DataParallel(model)
+        #     classifier = DataParallel(classifier)
+        #     discriminator = DataParallel(discriminator)
 
         # Create optimizers
         model_optimizer = optim.Adam(model.parameters(), lr=lr)

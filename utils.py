@@ -46,7 +46,7 @@ from scipy.stats import crystalball
 import datetime, os, itertools
 
 # Local Imports
-from models import GIN, HeteroGIN, Classifier, Discriminator, MLP, Concatenate
+from models import GIN, HeteroGIN, Classifier, Discriminator, MLP, Concatenate, MLP_SIGMOID
 
 #------------------------- Functions -------------------------#
 
@@ -488,7 +488,7 @@ def train_dagnn(
     scheduler,
     train_criterion,
     dom_criterion,
-    # lambda_function,#TODO: Commented out for DEBUGGING
+    alpha,#TODO: Commented out for DEBUGGING
     max_epochs,
     dataset="",
     prefix="",
@@ -516,7 +516,7 @@ def train_dagnn(
     scheduler : str, required
     train_criterion : str, required
     dom_criterion : str, required
-    lambda_function : function, required
+    alpha : function, required
     max_epochs : int, required
     dataset : str, optional
         Default : ""
@@ -560,11 +560,6 @@ def train_dagnn(
     # Logs for matplotlib plots
     logs={'train':{'train_loss':[],'train_accuracy':[],'train_roc_auc':[],'dom_loss':[],'dom_accuracy':[],'dom_roc_auc':[]},
             'val':{'train_loss':[],'train_accuracy':[],'train_roc_auc':[],'dom_loss':[],'dom_accuracy':[],'dom_roc_auc':[]}}
-
-    # Function to decrease lambda with epoch #TODO: Set this from the arguments.
-    def lambda_function(epoch, max_epochs):
-        p = epoch / max_epochs
-        return 2. / (1+np.exp(-10.*p)) - 1.
 
     # Continuously sample target domain data for training and validation
     dom_train_set = itertools.cycle(dom_train_loader)
@@ -624,7 +619,7 @@ def train_dagnn(
         dom_loss   = dom_criterion(dom_y, dom_labels) #NOTE: Using nn.Sigmoid() is important since the predictions need to be in [0,1].
 
         # Get total loss using lambda coefficient for epoch
-        coeff = lambda_function(engine.state.epoch, max_epochs)
+        coeff = alpha(engine.state.epoch, max_epochs)
         tot_loss = train_loss - coeff * dom_loss
         
         # Zero gradients in all parts of model
@@ -727,7 +722,7 @@ def train_dagnn(
             dom_loss   = dom_criterion(dom_y, dom_labels) #NOTE: Using activation like nn.Sigmoid() on discriminator is important since the predictions need to be in [0,1].
 
             # Get total loss using lambda coefficient for epoch
-            coeff = lambda_function(engine.state.epoch, max_epochs)
+            coeff = alpha(engine.state.epoch, max_epochs)
             tot_loss = train_loss - coeff * dom_loss
             
             #------------ NOTE: NO BACKPROPAGATION FOR VALIDATION ----------#
@@ -1310,12 +1305,20 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
     def objective(trial):
 
         # Get parameter suggestions for trial
+        #TODO: Add suggestions for all other hyperparameters DONE
+        #TODO: Add new options to args in test_dagnn.py DONE
+        #TODO: Update model creation below... DONE
+        alpha = args.alpha[0] if args.alpha[0] == args.alpha[1] else trial.suggest_int("alpha",args.alpha[0],args.alpha[1])
         batch_size = args.batch[0] if args.batch[0] == args.batch[1] else trial.suggest_int("batch_size",args.batch[0],args.batch[1]) 
         nlayers = args.nlayers[0] if args.nlayers[0] == args.nlayers[1] else trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1])
         nmlp  = args.nmlp[0] if args.nmlp[0] == args.nmlp[1] else trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1])
         hdim  = args.hdim[0] if args.hdim[0] == args.hdim[1] else trial.suggest_int("hdim",args.hdim[0],args.hdim[1])
+        nmlp_head  = args.nmlp_head[0] if args.nmlp_head[0] == args.nmlp_head[1] else trial.suggest_int("nmlp",args.nmlp_head[0],args.nmlp_head[1])
+        hdim_head  = args.hdim_head[0] if args.hdim_head[0] == args.hdim_head[1] else trial.suggest_int("hdim",args.hdim_head[0],args.hdim_head[1])
         do    = args.dropout[0] if args.dropout[0] == args.dropout[1] else trial.suggest_float("do",args.dropout[0],args.dropout[1])
         lr    = args.lr[0] if args.lr[0] == args.lr[1] else trial.suggest_float("lr",args.lr[0],args.lr[1],log=True)
+        lr_c  = args.lr_c[0] if args.lr_c[0] == args.lr_c[1] else trial.suggest_float("lr_c",args.lr_c[0],args.lr_c[1],log=True)
+        lr_d  = args.lr_d[0] if args.lr_d[0] == args.lr_d[1] else trial.suggest_float("lr_d",args.lr_d[0],args.lr_d[1],log=True)
         step  = args.step[0] if args.step[0] == args.step[1] else trial.suggest_int("step",args.step[0],args.step[1])
         gamma = args.gamma[0] if args.gamma[0] == args.gamma[1] else trial.suggest_float("gamma",args.gamma[0],args.gamma[1])
         max_epochs = args.epochs
@@ -1342,8 +1345,11 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         model = GIN(nlayers, nmlp, nfeatures,
                 hdim, hdim, do, args.learn_eps, args.npooling,
                 args.gpooling).to(device)
-        classifier = Classifier(input_size=hdim,num_classes=nclasses).to(device)
-        discriminator = Discriminator(input_size=hdim,num_classes=n_domains-1).to(device)
+        #NOTE: OLD BELOW 7/22/22
+        # classifier = Classifier(input_size=hdim,num_classes=nclasses).to(device)
+        # discriminator = Discriminator(input_size=hdim,num_classes=n_domains-1).to(device)
+        classifier = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
+        discriminator = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, n_domains).to(device)
 
         # # Make models parallel if multiple gpus available
         # if device.type=='cuda' and device.index==None:
@@ -1353,8 +1359,8 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
 
         # Create optimizers
         model_optimizer = optim.Adam(model.parameters(), lr=lr)
-        classifier_optimizer = optim.Adam(classifier.parameters(), lr=lr)
-        discriminator_optimizer = optim.Adam(discriminator.parameters(), lr=lr)
+        classifier_optimizer = optim.Adam(classifier.parameters(), lr=lr_c)
+        discriminator_optimizer = optim.Adam(discriminator.parameters(), lr=lr_d)
 
         # Create schedulers
         model_scheduler = optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, mode='min', factor=gamma, patience=args.patience,
@@ -1366,7 +1372,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
 
         # Create loss functions
         train_criterion = nn.CrossEntropyLoss()
-        dom_criterion   = nn.BCELoss()
+        dom_criterion   = nn.CrossEntropyLoss()
 
         # Make sure log/save directories exist
         trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number)
@@ -1396,7 +1402,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
                             model_scheduler,
                             train_criterion,
                             dom_criterion,
-                            # lambda_function,#TODO: Commented out for DEBUGGING
+                            alpha,#TODO: Commented out for DEBUGGING
                             args.epochs,
                             dataset=args.dataset,
                             prefix=args.prefix,
@@ -1434,7 +1440,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
             verbose=True
         )
 
-        return metrics[0]
+        return metrics[0] #NOTE: MAXIMIZED BASED ON AUC???!!?! #TODO: MENTION THIS IN WRITEUP...
 
     #----- MAIN PART -----#
     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()

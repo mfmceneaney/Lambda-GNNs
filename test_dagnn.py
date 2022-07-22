@@ -163,8 +163,8 @@ def main():
     #         args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
 
     model_optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    classifier_optimizer = optim.Adam(classifier.parameters(), lr=args.lr)
-    discriminator_optimizer = optim.Adam(discriminator.parameters(), lr=args.lr)
+    classifier_optimizer = optim.Adam(classifier.parameters(), lr=args.lr_c)
+    discriminator_optimizer = optim.Adam(discriminator.parameters(), lr=args.lr_d)
     print("DEBUGGING: CREATED OPTIMIZERS")
 
     model_scheduler = optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, mode='min', factor=args.gamma, patience=args.patience,

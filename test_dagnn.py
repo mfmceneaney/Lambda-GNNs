@@ -41,6 +41,10 @@ def main():
                         help='Number of epochs to train (default: 100)')
     parser.add_argument('--lr', type=float, default=1e-3,
                         help='Learning rate (default: 1e-3)')
+    parser.add_argument('--lr_c', type=float, default=1e-3,
+                        help='Classifier Learning rate (default: 1e-3)')
+    parser.add_argument('--lr_d', type=float, default=1e-3,
+                        help='Discriminator Learning rate (default: 1e-3)')
     parser.add_argument('--step', type=int, default=-1,
                         help='Learning rate step size (default: -1 for ReduceLROnPlateau, 0 uses ExponentialLR)')
     parser.add_argument('--gamma', type=float, default=0.63,
@@ -52,7 +56,11 @@ def main():
     parser.add_argument('--nmlp', type=int, default=3,
                         help='Number of output MLP layers (default: 3)')
     parser.add_argument('--hdim', type=int, default=64,
-                        help='Number of hidden dimensions in model (default: 64)')
+                        help='Number of hidden dimensions (default: 64)')
+     parser.add_argument('--nmlp_head', type=int, default=3,
+                        help='Number of output MLP layers in classifier/discriminator (default: 3)')
+    parser.add_argument('--hdim_head', type=int, default=64,
+                        help='Number of hidden dimensions in classifier/discriminator (default: 64)')
     parser.add_argument('--dropout', type=float, default=0.8,
                         help='Dropout rate for final layer (default: 0.8)')
     parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "mean"],
@@ -131,11 +139,11 @@ def main():
     model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, args.hdim, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)
-    # classifier = MLP(args.nmlp, args.hdim, args.hdim, nclasses).to(device)
-    # discriminator = MLP(args.nmlp, args.hdim, args.hdim, n_domains-1).to(device) #NOTE: The n_domains - 1 is important since we use BCELoss.
+    classifier = MLP(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
+    discriminator = MLP(args.nmlp_head, args.hdim, args.hdim_head, n_domains-1).to(device) #NOTE: The n_domains - 1 is important since we use BCELoss.
     #NOTE: ABOVE: NEED SIGMOID ACTIVATION AT END OF MLP's
-    classifier = Classifier(input_size=args.hdim,num_classes=nclasses).to(device)
-    discriminator = Discriminator(input_size=args.hdim,num_classes=n_domains-1).to(device)
+    # classifier = Classifier(input_size=args.hdim,num_classes=nclasses).to(device)
+    # discriminator = Discriminator(input_size=args.hdim,num_classes=n_domains-1).to(device)
     #TODO: Make nn.sigmoid or activation function option.... for train validation steps.... or just add to model...
     # classifier = Classifier
     print("DEBUGGING: CREATED MODELS")

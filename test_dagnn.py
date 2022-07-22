@@ -204,7 +204,7 @@ def main():
         model_scheduler,
         train_criterion,
         dom_criterion,
-        # lambda_function,#TODO: Commented out for DEBUGGING
+        alpha,#TODO: Commented out for DEBUGGING
         args.epochs,
         dataset=args.dataset,
         prefix=args.prefix,

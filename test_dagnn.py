@@ -57,7 +57,7 @@ def main():
                         help='Number of output MLP layers (default: 3)')
     parser.add_argument('--hdim', type=int, default=64,
                         help='Number of hidden dimensions (default: 64)')
-     parser.add_argument('--nmlp_head', type=int, default=3,
+    parser.add_argument('--nmlp_head', type=int, default=3,
                         help='Number of output MLP layers in classifier/discriminator (default: 3)')
     parser.add_argument('--hdim_head', type=int, default=64,
                         help='Number of hidden dimensions in classifier/discriminator (default: 64)')

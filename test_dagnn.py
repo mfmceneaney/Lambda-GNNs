@@ -21,7 +21,7 @@ import argparse, math, datetime, os, psutil, threading
 
 # Custom Imports
 from utils import load_graph_dataset, train_dagnn#, evaluate_dagnn
-from models import GIN, HeteroGIN, MLP, Classifier, Discriminator
+from models import GIN, HeteroGIN, MLP, Classifier, Discriminator, MLP_SIGMOID
 
 def main():
 

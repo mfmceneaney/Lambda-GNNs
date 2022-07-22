@@ -45,6 +45,8 @@ def main():
                         help='Classifier Learning rate (default: 1e-3)')
     parser.add_argument('--lr_d', type=float, default=1e-3,
                         help='Discriminator Learning rate (default: 1e-3)')
+    parser.add_argument('--alpha', type=float, default=1,
+                        help='Coefficient for discriminator loss (default: 1)')
     parser.add_argument('--step', type=int, default=-1,
                         help='Learning rate step size (default: -1 for ReduceLROnPlateau, 0 uses ExponentialLR)')
     parser.add_argument('--gamma', type=float, default=0.63,
@@ -140,7 +142,7 @@ def main():
             args.hdim, args.hdim, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)
     classifier = MLP(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
-    discriminator = MLP(args.nmlp_head, args.hdim, args.hdim_head, n_domains-1).to(device) #NOTE: The n_domains - 1 is important since we use BCELoss.
+    discriminator = MLP(args.nmlp_head, args.hdim, args.hdim_head, n_domains).to(device) #NOTE: UPDATED: REMOVED -1 for DEBUGGING #NOTE: The n_domains - 1 is important since we use BCELoss.
     #NOTE: ABOVE: NEED SIGMOID ACTIVATION AT END OF MLP's
     # classifier = Classifier(input_size=args.hdim,num_classes=nclasses).to(device)
     # discriminator = Discriminator(input_size=args.hdim,num_classes=n_domains-1).to(device)
@@ -175,7 +177,7 @@ def main():
 
     # Create loss functions
     train_criterion = nn.CrossEntropyLoss()
-    dom_criterion   = nn.BCELoss()
+    dom_criterion   = nn.CrossEntropyLoss() # nn.BCELoss()
     print("DEBUGGING: CREATED LOSSES")
 
     # Setup log directory

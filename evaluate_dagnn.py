@@ -41,6 +41,10 @@ def main():
                         help='Number of output MLP layers (default: 3)')
     parser.add_argument('--hdim', type=int, default=64,
                         help='Number of hidden dimensions in model (default: 64)')
+    parser.add_argument('--nmlp_head', type=int, default=3,
+                        help='Number of output MLP layers in classifier/discriminator (default: 3)')
+    parser.add_argument('--hdim_head', type=int, default=64,
+                        help='Number of hidden dimensions in classifier/discriminator (default: 64)')
     parser.add_argument('--dropout', type=float, default=0.8,
                         help='Dropout rate for final layer (default: 0.8)')
     parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "average"],
@@ -83,19 +87,22 @@ def main():
 
     # Set up and seed devices
     torch.manual_seed(0)
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(0)
+    # device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    # if torch.cuda.is_available():
+    #     torch.cuda.manual_seed_all(0)
+    device = torch.device('cpu')#DEBUGGING
 
     # Setup data and model
     nclasses, nfeatures, nfeatures_edge = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix)
+    print("DEBUGGING: nclasses, nfeatures, nfeatures_edge = ",nclasses, nfeatures, nfeatures_edge)#DEBUGGING
 
     _model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, args.hdim, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)
-    _classifier = Classifier(input_size=args.hdim,num_classes=nclasses).to(device)
+   _classifier = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
     print("DEBUGGING: LOADING: ",os.path.join(args.path,args.name+'_model_weights'))#DEBUGGING
     print("DEBUGGING: LOADING: ",os.path.join(args.path,args.name+'_classifier_weights'))#DEBUGGING
+    
     _model.load_state_dict(torch.load(os.path.join(args.path,args.name+'_model_weights'),map_location=device))
     _classifier.load_state_dict(torch.load(os.path.join(args.path,args.name+'_classifier_weights'),map_location=device))
 

@@ -1377,7 +1377,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         # Setup data and model
 
         # Setup data and model #NOTE: DO THIS HERE SINCE IT DEPENDS ON BATCH SIZE. #TODO: NOTE HOPEFULLY ALL BELOW WORKS...
-        train_dataloader, val_dataloader, eval_loader, dom_train_loader, dom_val_loader, nclasses, nfeatures, nfeatures_edge = [None for i in range(9)]
+        train_dataloader, val_dataloader, eval_loader, dom_train_loader, dom_val_loader, nclasses, nfeatures, nfeatures_edge = [None for i in range(8)]
         if len(args.indices)>3:
             train_loader, val_loader, eval_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
                                                     split=args.split, max_events=args.max_events, indices=args.indices,

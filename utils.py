@@ -129,6 +129,8 @@ def load_graph_dataset(
         Default : 0.75.
     max_events : int, optional
         Default : 1e5.
+    indices : tuple, optional
+        Default : None.
     batch_size : int, optional
         Default : 1024.
     drop_last : bool, optional
@@ -148,6 +150,8 @@ def load_graph_dataset(
         Dataloader for training data
     val_loader : dgl.GraphDataLoader
         Dataloader for validation data
+    eval_loader : dgl.GraphDataLoader
+        Dataloader for evaluation data, only returned if >3 indices specified
     num_labels : int
         Number of classification labels for dataset
     node_feature_dim : int
@@ -1208,7 +1212,7 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
     #NOTE: As of right now log_dir='logs/' should end with the slash
 
     # Load validation data
-    test_dataset = GraphDataset(args.prefix+args.dataset)
+    test_dataset = GraphDataset(args.prefix+args.dataset)#TODO: GET RID OF THIS!!!
     test_dataset.load()
     test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split)))
 
@@ -1225,8 +1229,18 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
         gamma = args.gamma[0] if args.gamma[0] == args.gamma[1] else trial.suggest_float("gamma",args.gamma[0],args.gamma[1])
         max_epochs = args.epochs
 
-        # Setup data and model #NOTE: DO THIS HERE SINCE IT DEPENDS ON BATCH SIZE.
-        train_dataloader, val_dataloader, nclasses, nfeatures, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+        # Setup data and model #NOTE: DO THIS HERE SINCE IT DEPENDS ON BATCH SIZE. #TODO: NOTE HOPEFULLY ALL BELOW WORKS...
+        train_dataloader, val_dataloader, eval_loader, nclasses, nfeatures, nfeatures_edge = [None for i in range(6)]
+        if len(args.indices)>3:
+            train_dataloader, val_dataloader, eval_loader, nclasses, nfeatures, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+                                                    split=args.split, max_events=args.max_events, indices=args.indices,
+                                                    num_workers=args.nworkers, batch_size=batch_size) 
+        elif len(args.indices)==3:
+            train_dataloader, val_dataloader, nclasses, nfeatures, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+                                                    split=args.split, max_events=args.max_events, indices=args.indices,
+                                                    num_workers=args.nworkers, batch_size=batch_size)
+        else:
+            train_dataloader, val_dataloader, nclasses, nfeatures, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
                                                     split=args.split, max_events=args.max_events,
                                                     num_workers=args.nworkers, batch_size=batch_size)
 
@@ -1276,6 +1290,7 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
         metrics = evaluate(
             model,
             device,
+            eval_loader=eval_loader, #TODO: IMPLEMENT THIS
             dataset=args.dataset, 
             prefix=args.prefix,
             split=args.split,
@@ -1360,13 +1375,33 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         max_epochs = args.epochs
 
         # Setup data and model
-        train_loader, val_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
-                                                        split=args.split, max_events=args.max_events,
-                                                        num_workers=args.nworkers, batch_size=batch_size)
 
-        dom_train_loader, dom_val_loader, dom_nclasses, dom_nfeatures_node, dom_nfeatures_edge = load_graph_dataset(dataset=args.dom_dataset, prefix=args.dom_prefix, 
-                                                        split=args.split, max_events=args.max_events,
-                                                        num_workers=args.nworkers, batch_size=batch_size)
+        # Setup data and model #NOTE: DO THIS HERE SINCE IT DEPENDS ON BATCH SIZE. #TODO: NOTE HOPEFULLY ALL BELOW WORKS...
+        train_dataloader, val_dataloader, eval_loader, dom_train_loader, dom_val_loader, nclasses, nfeatures, nfeatures_edge = [None for i in range(9)]
+        if len(args.indices)>3:
+            train_loader, val_loader, eval_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+                                                    split=args.split, max_events=args.max_events, indices=args.indices,
+                                                    num_workers=args.nworkers, batch_size=batch_size)
+
+            dom_train_loader, dom_val_loader, dom_eval_loader, dom_nclasses, dom_nfeatures_node, dom_nfeatures_edge = load_graph_dataset(dataset=args.dom_dataset, prefix=args.dom_prefix, 
+                                                    split=args.split, max_events=args.max_events, indices=args.indices[0:3],
+                                                    num_workers=args.nworkers, batch_size=batch_size) 
+        elif len(args.indices)==3:
+            train_loader, val_loader, eval_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+                                                    split=args.split, max_events=args.max_events, indices=args.indices,
+                                                    num_workers=args.nworkers, batch_size=batch_size)
+
+            dom_train_loader, dom_val_loader, dom_nclasses, dom_nfeatures_node, dom_nfeatures_edge = load_graph_dataset(dataset=args.dom_dataset, prefix=args.dom_prefix, 
+                                                    split=args.split, max_events=args.max_events, indices=args.indices,
+                                                    num_workers=args.nworkers, batch_size=batch_size)
+        else:
+            train_loader, val_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+                                                    split=args.split, max_events=args.max_events,
+                                                    num_workers=args.nworkers, batch_size=batch_size)
+
+            dom_train_loader, dom_val_loader, dom_nclasses, dom_nfeatures_node, dom_nfeatures_edge = load_graph_dataset(dataset=args.dom_dataset, prefix=args.dom_prefix, 
+                                                    split=args.split, max_events=args.max_events,
+                                                    num_workers=args.nworkers, batch_size=batch_size)
 
         # Check that # classes and data dimensionality at nodes and edges match between training and domain data
         if nclasses!=dom_nclasses or nfeatures_node!=dom_nfeatures_node or nfeatures_edge!=dom_nfeatures_edge:
@@ -1470,6 +1505,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
             device,
             dataset=args.dataset,
             prefix=args.prefix,
+            eval_loader=eval_loader,
             split=args.split,
             max_events=args.max_events,
             log_dir=trialdir,

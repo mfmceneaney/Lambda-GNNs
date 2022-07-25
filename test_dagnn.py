@@ -109,6 +109,12 @@ def main():
     parser.add_argument('--max_events', type=float, default=1e7,
                         help='Max number of train/val events to use (default: 1e7)')
 
+    # Data indexing options
+    parser.add_argument('--indices', type=int, default=None, nargs='*',
+                        help='Indices delimiting subsets of data to use for training, validation, and optionally evaluation, e.g. 0 80 90 100 (default: None)')
+    parser.add_argument('--dom_indices', type=int, default=None, nargs='*',
+                        help='Indices delimiting subsets of unlabelled data to use for training, validation, and optionally evaluation, e.g. 0 80 90 100 (default: None)')
+
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -121,11 +127,11 @@ def main():
 
     # Setup data and model
     train_loader, val_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
-                                                    split=args.split, max_events=args.max_events,
+                                                    split=args.split, max_events=args.max_events, indices=args.indices,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
     dom_train_loader, dom_val_loader, dom_nclasses, dom_nfeatures_node, dom_nfeatures_edge = load_graph_dataset(dataset=args.dom_dataset, prefix=args.dom_prefix, 
-                                                    split=args.split, max_events=args.max_events,
+                                                    split=args.split, max_events=args.max_events, indices=args.dom_indices,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
     print("DEBUGGING: CREATED DATALOADERS")

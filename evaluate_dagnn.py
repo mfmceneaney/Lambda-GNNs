@@ -20,7 +20,7 @@ import argparse, os
 
 # Custom Imports
 from utils import load_graph_dataset, evaluate, get_graph_dataset_info
-from models import GIN, HeteroGIN, Classifier, Discriminator
+from models import GIN, HeteroGIN, Classifier, Discriminator, MLP_SIGMOID
 import models
 
 def main():
@@ -87,10 +87,10 @@ def main():
 
     # Set up and seed devices
     torch.manual_seed(0)
-    # device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    # if torch.cuda.is_available():
-    #     torch.cuda.manual_seed_all(0)
-    device = torch.device('cpu')#DEBUGGING
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(0)
+    # device = torch.device('cpu')#DEBUGGING
 
     # Setup data and model
     nclasses, nfeatures, nfeatures_edge = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix)
@@ -99,7 +99,7 @@ def main():
     _model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, args.hdim, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)
-   _classifier = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
+    _classifier = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
     print("DEBUGGING: LOADING: ",os.path.join(args.path,args.name+'_model_weights'))#DEBUGGING
     print("DEBUGGING: LOADING: ",os.path.join(args.path,args.name+'_classifier_weights'))#DEBUGGING
     

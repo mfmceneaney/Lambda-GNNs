@@ -39,6 +39,12 @@ def main():
                         help='Number of epochs to train (default: 100)')
     parser.add_argument('--lr', type=float, nargs=2, default=[1e-5,1e-2],
                         help='Learning rate range (default: 1e-5 1e-2)')
+    parser.add_argument('--lr_c', type=float, nargs=2, default=[1e-5,1e-2],
+                        help='Classifier learning rate range (default: 1e-5 1e-2)')
+    parser.add_argument('--lr_d', type=float, nargs=2, default=[1e-5,1e-2],
+                        help='Discriminator learning rate range (default: 1e-5 1e-2)')
+    parser.add_argument('--alpha', type=float, nargs=2, default=[1,100],
+                        help='Coefficient for discriminator loss (default: 1 100)')
     parser.add_argument('--step', type=int, nargs=2, default=[10,10],
                         help='Learning rate step size range (default: 10 10)')
     parser.add_argument('--gamma', type=float, nargs=2, default=[0.63,0.63],
@@ -49,8 +55,12 @@ def main():
                         help='Number of model layers range (default: 4 4)')
     parser.add_argument('--nmlp', type=int, nargs=2, default=[3,3],
                         help='Number of output MLP layers range (default: 3 3)')
-    parser.add_argument('--hdim', type=int, nargs=2, default=[128,128],
-                        help='Number of hidden dimensions in model range (default: 128 128)')
+    parser.add_argument('--hdim', type=int, nargs=2, default=[64,64],
+                        help='Number of hidden dimensions in model range (default: 64 64)')
+    parser.add_argument('--nmlp_head', type=int, nargs=2, default=[3,3],
+                        help='Number of output MLP layers in classifier/discriminator (default: 3 3)')
+    parser.add_argument('--hdim_head', type=int, nargs=2, default=[64,64],
+                        help='Number of hidden dimensions in classifier/discriminator (default: 64 64)')
     parser.add_argument('--dropout', type=float, nargs=2, default=[0.5,0.8],
                         help='Dropout rate for final layer range (default: 0.5 0.8)')
     parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "mean"],
@@ -107,6 +117,12 @@ def main():
                         help='Max wait time for improvement in trials (default: 864000)')
     parser.add_argument('--pruning', action="store_true",
                         help='Whether to use optuna pruner or not')
+
+    # Data indexing options
+    parser.add_argument('--indices', type=int, default=None, nargs='*',
+                        help='Indices delimiting subsets of data to use for training, validation, and optionally evaluation, e.g. 0 80 90 100 (default: None)')
+    parser.add_argument('--dom_indices', type=int, default=None, nargs='*',
+                        help='Indices delimiting subsets of unlabelled data to use for training, validation, and optionally evaluation, e.g. 0 80 90 100 (default: None)')
 
     args = parser.parse_args()
 

@@ -172,9 +172,9 @@ def load_graph_dataset(
 
     # Get training subset
     if indices is not None:
-        if len(indices)!=4: raise IndexError("Length of indices argument must be 4.")
+        if len(indices)<3: raise IndexError("Length of indices argument must be >=3.")
         if (indices[0]>=len(this_dataset) or indices[1]>=len(this_dataset)): raise IndexError("First or middle index cannot be greater than length of dataset.")
-        if indices[0]>indices[1] or indices[1]>indices[2] or indices[2]>indices[3]: raise IndexError("Make sure indices are in ascending order left to right.")
+        if indices[0]>indices[1] or indices[1]>indices[2] or (len(indices)>3 and indices[2]>indices[3]): raise IndexError("Make sure indices are in ascending order left to right.")
     index = int(min(len(this_dataset),max_events)*split)
     train_indices = range(index) if indices is None else range(indices[0],int(min(len(this_dataset),indices[1])))
     train_dataset = Subset(this_dataset,train_indices)
@@ -966,12 +966,13 @@ def train_dagnn(
 
     return logs
     
-def evaluate(model,device,eval_dataset=None,dataset="", prefix="", split=0.75, max_events=1e10, log_dir="logs/",verbose=True):
+def evaluate(model,device,eval_dataloader=None,dataset="", prefix="", split=0.75, max_events=1e10, log_dir="logs/",verbose=True):
 
     # Load validation data
-    test_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
-    test_dataset.load()
-    test_dataset = Subset(test_dataset,range(int(min(len(test_dataset),max_events)*split)))
+    test_dataset = GraphDataset(prefix+dataset) if eval_loader is None else eval_loader.dataset # Make sure this is copied into ~/.dgl folder
+    if eval_loader is None:
+        test_dataset.load()
+        test_dataset = Subset(test_dataset,range(int(min(len(test_dataset),max_events)*split)))
 
     model.eval()
     model      = model.to(device)

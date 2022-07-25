@@ -118,6 +118,8 @@ def load_graph_dataset(
         Default : 1024.
     prefix : string, optional
         Default : False.
+    indices : tuple, optional
+        Tuple of start and stop indices to use
     key : string, optional
         Default : "data".
     ekey : string, optional
@@ -605,7 +607,8 @@ def train_dagnn(
         
         # Step the domain discriminator on training and domain data
         dom_y = discriminator(h.detach())
-        dom_labels = torch.cat([torch.ones(nLabelled,1), torch.zeros(nUnlabelled,1)], dim=0).to(device) #NOTE: Make sure domain label lengths match actual batches at the end.
+        dom_labels = torch.cat([torch.ones(nLabelled,dtype=torch.long), torch.zeros(nUnlabelled,dtype=torch.long)], dim=0).to(device) #NOTE: Make sure domain label lengths match actual batches at the end.
+        # dom_labels = torch.cat([torch.cat([torch.ones(nLabelled,1),torch.zeros(nLabelled,1)],dim=1),torch.cat([torch.zeros(nUnlabelled,1),torch.ones(nUnlabelled,1)],dim=1)],dim=0).to(device)
         dom_loss = dom_criterion(dom_y, dom_labels) #NOTE: Using activation function like nn.Sigmoid() at end of model is important since the predictions need to be in [0,1].
         discriminator.zero_grad()
         dom_loss.backward()
@@ -647,7 +650,7 @@ def train_dagnn(
         dom_acc = (dom_true_y == dom_argmax_y.float()).sum().item() / len(dom_true_y)
 
         return {
-                'lambda': coeff,
+                'alpha': alpha,
                 'train_y': train_y, #CLASSIFIER OUTPUT
                 'train_probs_y': train_probs_y,
                 'train_true_y': train_labels, #NOTE: Need this for some reason?
@@ -705,7 +708,8 @@ def train_dagnn(
             
             # Step the domain discriminator on training and domain data
             dom_y = discriminator(h.detach())
-            dom_labels = torch.cat([torch.ones(nLabelled,1), torch.zeros(nUnlabelled,1)], dim=0).to(device) #NOTE: Make sure domain label lengths match actual batches at the end.
+            dom_labels = torch.cat([torch.ones(nLabelled,dtype=torch.long), torch.zeros(nUnlabelled,dtype=torch.long)], dim=0).to(device) #NOTE: Make sure domain label lengths match actual batches at the end.
+            # dom_labels = torch.cat([torch.cat([torch.ones(nLabelled,1),torch.zeros(nLabelled,1)],dim=1),torch.cat([torch.zeros(nUnlabelled,1),torch.ones(nUnlabelled,1)],dim=1)],dim=0).to(device)
             dom_loss = dom_criterion(dom_y, dom_labels) #NOTE: Using activation function like nn.Sigmoid() at end of model is important since the predictions need to be in [0,1].
 
             #------------ NOTE: NO BACKPROPAGATION FOR VALIDATION ----------#
@@ -752,7 +756,7 @@ def train_dagnn(
             dom_acc = (dom_true_y == dom_argmax_y.float()).sum().item() / len(dom_true_y)
 
         return {
-                'lambda': coeff,
+                'alpha': alpha,
                 'train_y': train_y, #CLASSIFIER OUTPUT
                 'train_probs_y': train_probs_y,
                 'train_true_y': train_labels, #NOTE: Need this for some reason?

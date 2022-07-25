@@ -619,8 +619,8 @@ def train_dagnn(
         dom_loss   = dom_criterion(dom_y, dom_labels) #NOTE: Using nn.Sigmoid() is important since the predictions need to be in [0,1].
 
         # Get total loss using lambda coefficient for epoch
-        coeff = alpha(engine.state.epoch, max_epochs)
-        tot_loss = train_loss - coeff * dom_loss
+        # coeff = alpha(engine.state.epoch, max_epochs)#OLD: 7/25/22
+        tot_loss = train_loss - alpha * dom_loss
         
         # Zero gradients in all parts of model
         model.zero_grad()
@@ -722,8 +722,8 @@ def train_dagnn(
             dom_loss   = dom_criterion(dom_y, dom_labels) #NOTE: Using activation like nn.Sigmoid() on discriminator is important since the predictions need to be in [0,1].
 
             # Get total loss using lambda coefficient for epoch
-            coeff = alpha(engine.state.epoch, max_epochs)
-            tot_loss = train_loss - coeff * dom_loss
+            # coeff = alpha(engine.state.epoch, max_epochs)#OLD: 7/25/22
+            tot_loss = train_loss - alpha * dom_loss
             
             #------------ NOTE: NO BACKPROPAGATION FOR VALIDATION ----------#
             # # Zero gradients in all parts of model
@@ -1308,6 +1308,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         #TODO: Add suggestions for all other hyperparameters DONE
         #TODO: Add new options to args in test_dagnn.py DONE
         #TODO: Update model creation below... DONE
+        #TODO: Update BCELoss->CrossEntropyLoss below DONE
         alpha = args.alpha[0] if args.alpha[0] == args.alpha[1] else trial.suggest_int("alpha",args.alpha[0],args.alpha[1])
         batch_size = args.batch[0] if args.batch[0] == args.batch[1] else trial.suggest_int("batch_size",args.batch[0],args.batch[1]) 
         nlayers = args.nlayers[0] if args.nlayers[0] == args.nlayers[1] else trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1])

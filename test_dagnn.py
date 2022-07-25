@@ -42,9 +42,9 @@ def main():
     parser.add_argument('--lr', type=float, default=1e-3,
                         help='Learning rate (default: 1e-3)')
     parser.add_argument('--lr_c', type=float, default=1e-3,
-                        help='Classifier Learning rate (default: 1e-3)')
+                        help='Classifier learning rate (default: 1e-3)')
     parser.add_argument('--lr_d', type=float, default=1e-3,
-                        help='Discriminator Learning rate (default: 1e-3)')
+                        help='Discriminator learning rate (default: 1e-3)')
     parser.add_argument('--alpha', type=float, default=1,
                         help='Coefficient for discriminator loss (default: 1)')
     parser.add_argument('--step', type=int, default=-1,

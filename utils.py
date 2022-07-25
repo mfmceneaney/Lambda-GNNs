@@ -103,6 +103,7 @@ def load_graph_dataset(
     ekey="",
     split=0.75,
     max_events=1e5,
+    indices=None,
     batch_size=1024,
     drop_last=False,
     shuffle=True,
@@ -163,13 +164,20 @@ def load_graph_dataset(
     """
 
     # Load training data
-    train_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
-    train_dataset.load()
-    num_labels = train_dataset.num_labels
-    node_feature_dim = train_dataset.graphs[0].ndata[key].shape[-1]  if  key != '' else 0
-    edge_feature_dim = train_dataset.graphs[0].edata[ekey].shape[-1] if ekey != '' else 0
-    index = int(min(len(train_dataset),max_events)*split)
-    train_dataset = Subset(train_dataset,range(index))
+    this_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    this_dataset.load()
+    num_labels = this_dataset.num_labels
+    node_feature_dim = this_dataset.graphs[0].ndata[key].shape[-1]  if  key != '' else 0
+    edge_feature_dim = this_dataset.graphs[0].edata[ekey].shape[-1] if ekey != '' else 0
+
+    # Get training subset
+    if indices is not None:
+        if len(indices)!=4: raise IndexError("Length of indices argument must be 4.")
+        if (indices[0]>=len(this_dataset) or indices[1]>=len(this_dataset)): raise IndexError("First or middle index cannot be greater than length of dataset.")
+        if indices[0]>indices[1] or indices[1]>indices[2] or indices[2]>indices[2]: raise IndexError("Make sure indices are in ascending order left to right.")
+    index = int(min(len(this_dataset),max_events)*split)
+    train_indices = range(index) if indices is None else range(indices[0],int(min(len(this_dataset),indices[1])))
+    train_dataset = Subset(this_dataset,train_indices)
 
     # Create training dataloader
     train_loader = GraphDataLoader(
@@ -181,9 +189,11 @@ def load_graph_dataset(
         num_workers=num_workers)
 
     # Load validation data
-    val_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
-    val_dataset.load()
-    val_dataset = Subset(val_dataset,range(index,len(val_dataset)))
+    # val_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+    # val_dataset.load() #NOTE: DON'T Reload the entire dataset if you are splitting it anyway
+    index2 = int(min(len(this_dataset),max_events))
+    val_indices = range(index,index2) if indices is None else range(indices[1],int(min(len(this_dataset),indices[2])))
+    val_dataset = Subset(this_dataset,val_indices)
 
     # Create testing dataloader
     val_loader = GraphDataLoader(
@@ -194,7 +204,27 @@ def load_graph_dataset(
         pin_memory=pin_memory,
         num_workers=num_workers)
 
-    return train_loader, val_loader, num_labels, node_feature_dim, edge_feature_dim
+    if indices is not None and len(indices)>=4:
+
+        # Load validation data
+        # val_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
+        # val_dataset.load() #NOTE: DON'T Reload the entire dataset if you are splitting it anyway
+        eval_indices = range(indices[2],last_index) if indices is None else range(indices[2],int(min(len(this_dataset),indices[3])))
+        eval_dataset = Subset(this_dataset,eval_indices)
+
+        # Create testing dataloader
+        eval_loader = GraphDataLoader(
+            eval_dataset,
+            batch_size=batch_size,
+            drop_last=drop_last,
+            shuffle=False,
+            pin_memory=pin_memory,
+            num_workers=num_workers)
+
+
+        return train_loader, val_loader, eval_loader, num_labels, node_feature_dim, edge_feature_dim
+    else:
+        return train_loader, val_loader, num_labels, node_feature_dim, edge_feature_dim
 
 def train(
     args,

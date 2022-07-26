@@ -1216,10 +1216,10 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
 def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
     #NOTE: As of right now log_dir='logs/' should end with the slash
 
-    # Load validation data
-    test_dataset = GraphDataset(args.prefix+args.dataset)#TODO: GET RID OF THIS!!!
-    test_dataset.load()
-    test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split)))
+    # # Load validation data
+    # test_dataset = GraphDataset(args.prefix+args.dataset)#TODO: GET RID OF THIS!!!
+    # test_dataset.load()
+    # test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split)))
 
     def objective(trial):
 
@@ -1326,10 +1326,10 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
 def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
     #NOTE: As of right now log_dir='logs/' should end with the slash
 
-    # Load validation data
-    test_dataset = GraphDataset(args.prefix+args.dataset)
-    test_dataset.load()
-    test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split),len(test_dataset))) #NOTE: This is currently same as validation data...
+    # # Load validation data
+    # test_dataset = GraphDataset(args.prefix+args.dataset)
+    # test_dataset.load()
+    # test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split),len(test_dataset))) #NOTE: This is currently same as validation data...
 
     # def setup(rank, world_size,method="gloo"):
     #     os.environ['MASTER_ADDR'] = 'localhost'

@@ -973,7 +973,7 @@ def train_dagnn(
 def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, max_events=1e10, log_dir="logs/",verbose=True):
 
     # Load validation data
-    test_dataset = GraphDataset(prefix+dataset) if eval_loader is None else eval_loader.dataset # Make sure this is copied into ~/.dgl folder
+    test_dataset = GraphDataset(prefix+dataset) if eval_loader is None else eval_loader.dataloader.dataset.dataset # Make sure this is copied into ~/.dgl folder
     if eval_loader is None:
         test_dataset.load()
         test_dataset = Subset(test_dataset,range(int(min(len(test_dataset),max_events)*split)))

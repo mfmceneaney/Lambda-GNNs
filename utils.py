@@ -1211,7 +1211,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     plt.ylabel('counts')
     f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
 
-    return (test_acc,auc) #NOTE: Needed for optimization_study() below.
+    return (auc,test_acc) #NOTE: Needed for optimization_study() below.
 
 def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
     #NOTE: As of right now log_dir='logs/' should end with the slash

@@ -1383,7 +1383,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
                                                     split=args.split, max_events=args.max_events, indices=args.indices,
                                                     num_workers=args.nworkers, batch_size=batch_size)
 
-            dom_train_loader, dom_val_loader, dom_eval_loader, dom_nclasses, dom_nfeatures_node, dom_nfeatures_edge = load_graph_dataset(dataset=args.dom_dataset, prefix=args.dom_prefix, 
+            dom_train_loader, dom_val_loader, dom_nclasses, dom_nfeatures_node, dom_nfeatures_edge = load_graph_dataset(dataset=args.dom_dataset, prefix=args.dom_prefix, 
                                                     split=args.split, max_events=args.max_events, indices=args.indices[0:3],
                                                     num_workers=args.nworkers, batch_size=batch_size) 
         elif len(args.indices)==3:

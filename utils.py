@@ -984,8 +984,8 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     print("DEBUGGING: test_dataset.indices.start = ",test_dataset.indices.start)#DEBUGGING
     print("DEBUGGING: test_dataset.indices.stop = ",test_dataset.indices.stop)#DEBUGGING
 
-    test_bg    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop])#TODO: Figure out nicer way to use subset
-    test_Y     = test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
+    test_bg    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop]) if eval_loader is None else dgl.batch(test_dataset.graphs)#TODO: Figure out nicer way to use subset
+    test_Y     = test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float().view(-1, 1) if eval_loader is None else test_dataset.labels[:,0].clone().detach().float().view(-1,1)#IMPORTANT: keep .view() here
     test_bg    = test_bg.to(device)
     test_Y     = test_Y.to(device)
     prediction = model(test_bg)

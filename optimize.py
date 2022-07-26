@@ -104,6 +104,10 @@ def main():
     parser.add_argument('--max_events', type=float, default=1e5,
                         help='Max number of train/val events to use (default: 1e5)')
 
+    # Data indexing options
+    parser.add_argument('--indices', type=int, default=None, nargs='*',
+                        help='Indices delimiting subsets of data to use for training, validation, and optionally evaluation, e.g. 0 80 90 100 (default: None)')
+
     args = parser.parse_args()
 
     # Set up and seed devices

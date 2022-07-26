@@ -988,6 +988,9 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     test_Y     = test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
     test_bg    = test_bg.to(device)
     test_Y     = test_Y.to(device)
+    print("DEBUGGING: device = ",device)#DEBUGGING
+    print("DEBUGGING: model.device = ",model.device)#DEBUGGING
+    print("DEBUGGING: test_bg.device",test_bg.device)#DEBUGGING
     prediction = model(test_bg)
     probs_Y    = torch.softmax(prediction, 1)
     argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)

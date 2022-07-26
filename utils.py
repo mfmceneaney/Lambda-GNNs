@@ -989,7 +989,9 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     test_bg    = test_bg.to(device)
     test_Y     = test_Y.to(device)
     print("DEBUGGING: device = ",device)#DEBUGGING
-    print("DEBUGGING: model.device = ",model.device)#DEBUGGING
+    model.to(device)
+    # test_bg.to(device)
+    # print("DEBUGGING: model.device = ",model.device)#DEBUGGING
     print("DEBUGGING: test_bg.device",test_bg.device)#DEBUGGING
     prediction = model(test_bg)
     probs_Y    = torch.softmax(prediction, 1)

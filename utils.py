@@ -979,17 +979,17 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
         test_dataset = Subset(test_dataset,range(int(min(len(test_dataset),max_events)*split)))
 
     model.eval()
-    model      = model.to(device)
+    model      = model.cpu()#to(device)
 
     print("DEBUGGING: test_dataset.indices.start = ",test_dataset.indices.start)#DEBUGGING
     print("DEBUGGING: test_dataset.indices.stop = ",test_dataset.indices.stop)#DEBUGGING
 
     test_bg    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop]) #TODO: Figure out nicer way to use subset
     test_Y     = test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
-    test_bg    = test_bg.to(device)
-    test_Y     = test_Y.to(device)
+    test_bg    = test_bg.cpu()#.to(device)
+    test_Y     = test_Y.cpu()#to(device)
     print("DEBUGGING: device = ",device)#DEBUGGING
-    model.to(device)
+    model.cpu()#to(device)
     # test_bg.to(device)
     # print("DEBUGGING: model.device = ",model.device)#DEBUGGING
     print("DEBUGGING: test_bg.device",test_bg.device)#DEBUGGING

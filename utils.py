@@ -1006,8 +1006,8 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     argmax_Y = argmax_Y.cpu()
 
     # Get separated mass distributions
-    mass_sig_Y    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 1)) if eval_loader is None else ma.array(test_dataset.labels[:,0].clone().detach().float().view(-1,1),mask=~(argmax_Y == 1)) 
-    mass_bg_Y     = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 0)) if eval_loader is None else ma.array(test_dataset.labels[:,0].clone().detach().float().view(-1,1),mask=~(argmax_Y == 0)) 
+    mass_sig_Y    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 1)) #if eval_loader is None else ma.array(test_dataset.labels[:,0].clone().detach().float().view(-1,1),mask=~(argmax_Y == 1)) 
+    mass_bg_Y     = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 0)) #if eval_loader is None else ma.array(test_dataset.labels[:,0].clone().detach().float().view(-1,1),mask=~(argmax_Y == 0)) 
     
     print("DEBUGGING: np.shape(mass_sig_Y) = ",np.shape(mass_sig_Y))#DEBUGGING
     print("DEBUGGING: ma.count(mass_sig_Y) = ",ma.count(mass_sig_Y))#DEBUGGING

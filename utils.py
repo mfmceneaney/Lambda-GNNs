@@ -1419,8 +1419,8 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         #NOTE: OLD BELOW 7/22/22
         # classifier = Classifier(input_size=hdim,num_classes=nclasses).to(device)
         # discriminator = Discriminator(input_size=hdim,num_classes=n_domains-1).to(device)
-        classifier = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
-        discriminator = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, n_domains).to(device)
+        classifier = MLP_SIGMOID(nmlp_head, hdim, hdim_head, nclasses).to(device)
+        discriminator = MLP_SIGMOID(nmlp_head, hdim, hdim_head, n_domains).to(device)
 
         # # Make models parallel if multiple gpus available
         # if device.type=='cuda' and device.index==None:

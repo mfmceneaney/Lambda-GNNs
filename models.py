@@ -24,11 +24,10 @@ class Concatenate(nn.Module):
         self.models = models
         self.name = name
     
-    def forward(self,x):
-        x1 = x #TODO: Use deepcopy here?
-        for m in self.models:
-            x1 = m(x1)
-        return x1
+    def forward(self,h):
+        for m in self.models: #NOTE: Make sure if you decide to copy arrays you put them on the correct device!
+            h = m(h)
+        return h
 
     # @property
     def name(self):

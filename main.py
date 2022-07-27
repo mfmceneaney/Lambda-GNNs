@@ -93,6 +93,10 @@ def main():
     parser.add_argument('--max_events', type=float, default=1e5,
                         help='Max number of train/val events to use (default: 1e5)')
 
+    # Data indexing options
+    parser.add_argument('--indices', type=int, default=None, nargs='*',
+                        help='Indices delimiting subsets of data to use for training, validation, and optionally evaluation, e.g. 0 80 90 100 (default: None)')
+
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -103,7 +107,7 @@ def main():
 
     # Setup data and model
     train_dataloader, val_dataloader, nclasses, nfeatures, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
-                                                    split=args.split, max_events=args.max_events,
+                                                    split=args.split, max_events=args.max_events, indices=args.indices,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
     model = GIN(args.nlayers, args.nmlp, nfeatures,

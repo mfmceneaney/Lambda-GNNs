@@ -979,20 +979,13 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
         test_dataset = Subset(test_dataset,range(int(min(len(test_dataset),max_events)*split)))
 
     model.eval()
-    model      = model.cpu()#to(device)
-
-    print("DEBUGGING: test_dataset.indices.start = ",test_dataset.indices.start)#DEBUGGING
-    print("DEBUGGING: test_dataset.indices.stop = ",test_dataset.indices.stop)#DEBUGGING
+    model      = model.to(device)
 
     test_bg    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop]) #TODO: Figure out nicer way to use subset
     test_Y     = test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
-    test_bg    = test_bg.cpu()#.to(device)
-    test_Y     = test_Y.cpu()#to(device)
-    print("DEBUGGING: device = ",device)#DEBUGGING
-    model.cpu()#to(device)
-    # test_bg.to(device)
-    # print("DEBUGGING: model.device = ",model.device)#DEBUGGING
-    print("DEBUGGING: test_bg.device",test_bg.device)#DEBUGGING
+    test_bg    = test_bg.to(device)
+    test_Y     = test_Y.to(device)
+
     prediction = model(test_bg)
     probs_Y    = torch.softmax(prediction, 1)
     argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
@@ -1008,13 +1001,8 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     # Get separated mass distributions
     mass_sig_Y    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 1)) #if eval_loader is None else ma.array(test_dataset.labels[:,0].clone().detach().float().view(-1,1),mask=~(argmax_Y == 1)) 
     mass_bg_Y     = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 0)) #if eval_loader is None else ma.array(test_dataset.labels[:,0].clone().detach().float().view(-1,1),mask=~(argmax_Y == 0)) 
-    
-    print("DEBUGGING: np.shape(mass_sig_Y) = ",np.shape(mass_sig_Y))#DEBUGGING
-    print("DEBUGGING: ma.count(mass_sig_Y) = ",ma.count(mass_sig_Y))#DEBUGGING
 
     # Get false-positive true-negatives and vice versa
-    print("DEBUGGING: test_dataset.dataset.labels[0] = ",test_dataset.dataset.labels[0])#DEBUGGING
-
     mass_sig_true  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
                                 mask=np.logical_or(~(torch.squeeze(argmax_Y) == 1),~(torch.squeeze(argmax_Y) == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float())))
     mass_bg_true   = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),

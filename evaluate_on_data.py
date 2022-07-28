@@ -62,6 +62,8 @@ def main():
     # Model load directory
     parser.add_argument('--path', type=str, default='torch_models',
                         help='Model load path (default: torch_models)')
+    parser.add_argument('--name', type=str, default='model', #NOTE: Corresponds to `--save_path` argument in training.
+                        help='Name for file in which to save model (default: model)')
 
     # Input dataset directory prefix option
     parser.add_argument('--prefix', type=str, default='',
@@ -92,7 +94,7 @@ def main():
             args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,
             args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
 
-    model.load_state_dict(torch.load(args.path,map_location=device))
+    model.load_state_dict(torch.load(os.path.join(args.path,args.name+'_weights'),map_location=device))
     model.eval()
 
     # Setup log directory

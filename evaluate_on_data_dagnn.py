@@ -93,7 +93,7 @@ def main():
     # Setup data and model
     nclasses, nfeatures, nfeatures_edge = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix)
 
-   _model = GIN(args.nlayers, args.nmlp, nfeatures,
+    _model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, args.hdim, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)
     _classifier = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)

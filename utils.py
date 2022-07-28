@@ -382,8 +382,8 @@ def train(
     accuracy.attach(trainer, 'accuracy')
     loss      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
     loss.attach(trainer, 'loss')
-    roc_auc   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
-    roc_auc.attach(trainer,'roc_auc')
+    # roc_auc   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
+    # roc_auc.attach(trainer,'roc_auc')
 
     # Create evaluator
     evaluator = Engine(val_step)
@@ -393,7 +393,7 @@ def train(
     accuracy_.attach(evaluator, 'accuracy')
     loss_      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
     loss_.attach(evaluator, 'loss')
-    roc_auc_   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
+    # roc_auc_   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     roc_auc_.attach(evaluator,'roc_auc')
 
     # Set up early stopping

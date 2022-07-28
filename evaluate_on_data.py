@@ -41,10 +41,10 @@ def main():
                         help='Number of hidden dimensions in model (default: 64)')
     parser.add_argument('--dropout', type=float, default=0.8,
                         help='Dropout rate for final layer (default: 0.8)')
-    parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "average"],
-                        help='Pooling type over entire graph: sum or average')
-    parser.add_argument('--npooling', type=str, default="max", choices=["sum", "average", "max"],
-                        help='Pooling type over neighboring nodes: sum, average or max')
+    parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "mean"],
+                        help='Pooling type over entire graph: sum or mean')
+    parser.add_argument('--npooling', type=str, default="max", choices=["sum", "mean", "max"],
+                        help='Pooling type over neighboring nodes: sum, mean or max')
     parser.add_argument('--learn_eps', action="store_true",
                                         help='Whether to learn the epsilon weighting for the center nodes. Does not affect training accuracy though.')
     parser.add_argument('--verbose', action="store_true",

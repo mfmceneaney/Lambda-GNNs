@@ -455,7 +455,7 @@ def train(
         trainer,
         event_name=Events.EPOCH_COMPLETED,
         tag="training",
-        metric_names=["loss","accuracy","roc_auc"],
+        metric_names=["loss","accuracy"], #,"roc_auc" #OLD: 7/29/22
         global_step_transform=global_step_from_engine(trainer),
     )
 
@@ -464,7 +464,7 @@ def train(
         evaluator,
         event_name=Events.EPOCH_COMPLETED,
         tag="validation",
-        metric_names=["loss","accuracy","roc_auc"],
+        metric_names=["loss","accuracy"], #,"roc_auc" #OLD: 7/29/22
         global_step_transform=global_step_from_engine(evaluator)
     )
 

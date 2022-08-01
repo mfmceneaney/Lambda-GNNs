@@ -1159,10 +1159,10 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     pfn_fp, pfn_tp, threshs = roc_curve(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
 
     # Get area under the ROC curve
-    print("DEBUGGING: utils.py np.shape(test_Y.detach().numpy()) = ",np.shape(test_Y.detach().numpy()))#DEBUGGING
+    print("DEBUGGING: utils.py np.shape(test_Y.detach().numpy()) = ",np.shape(np.squeeze(test_Y.detach().numpy())))#DEBUGGING
     print("DEBUGGING: utils.py np.shape(probs_Y[:,1].detach().numpy()) = ",np.shape(probs_Y[:,1].detach().numpy()))#DEBUGGING
     
-    auc = roc_auc_score(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
+    auc = roc_auc_score(np.squeeze(test_Y.detach().numpy()), probs_Y[:,1].detach().numpy())
     if verbose: print(f'AUC = {auc:.4f}')
 
     # Create matplotlib plots for ROC curve and testing decisions

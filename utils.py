@@ -174,6 +174,9 @@ def load_graph_dataset(
     node_feature_dim = this_dataset.graphs[0].ndata[key].shape[-1]  if  key != '' else 0
     edge_feature_dim = this_dataset.graphs[0].edata[ekey].shape[-1] if ekey != '' else 0
 
+    # Shuffle entire dataset
+    this_dataset.shuffle()
+
     # Get training subset
     if indices is not None:
         if len(indices)<3: raise IndexError("Length of indices argument must be >=3.")
@@ -204,7 +207,7 @@ def load_graph_dataset(
         val_dataset,
         batch_size=batch_size,
         drop_last=drop_last,
-        shuffle=False,
+        shuffle=shuffle,
         pin_memory=pin_memory,
         num_workers=num_workers)
 
@@ -221,7 +224,7 @@ def load_graph_dataset(
             eval_dataset,
             batch_size=batch_size,
             drop_last=drop_last,
-            shuffle=False,
+            shuffle=shuffle,
             pin_memory=pin_memory,
             num_workers=num_workers)
 
@@ -1794,6 +1797,15 @@ class GraphDataset(DGLDataset):
         graph_path = os.path.join(self.save_path, self.mode + '_dgl_graph.bin')
         info_path = os.path.join(self.save_path, self.mode + '_info.pkl')
         return os.path.exists(graph_path) and os.path.exists(info_path)
+
+    def shuffle(self):
+        """
+        Randomly shuffle dataset graphs and labels.
+        """
+        indices = np.array([i for i in range(len(self.graphs))])
+        np.random.shuffle(indices) #NOTE: In-place method
+        self.labels = torch.stack([self.labels[i] for i in indices]) #NOTE: Don't use torch.tensor([some python list]) since that only works for 1D lists.
+        self.graphs = [self.graphs[i] for i in indices]
     
     @property
     def num_labels(self):

@@ -175,7 +175,7 @@ def load_graph_dataset(
     edge_feature_dim = this_dataset.graphs[0].edata[ekey].shape[-1] if ekey != '' else 0
 
     # Shuffle entire dataset
-    this_dataset.shuffle()
+    if shuffle: this_dataset.shuffle()
 
     # Get training subset
     if indices is not None:

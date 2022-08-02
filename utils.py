@@ -986,6 +986,8 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     test_bg    = test_bg.to(device)
     test_Y     = test_Y.to(device)
 
+    print("DEBUGGING: test_Y.device = ",test_Y.device)#DEBUGGING
+
     prediction = model(test_bg)
     probs_Y    = torch.softmax(prediction, 1)
     argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
@@ -1161,7 +1163,8 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     # Get area under the ROC curve
     print("DEBUGGING: utils.py np.shape(test_Y.detach().numpy()) = ",np.shape(np.squeeze(test_Y.detach().numpy())))#DEBUGGING
     print("DEBUGGING: utils.py np.shape(probs_Y[:,1].detach().numpy()) = ",np.shape(probs_Y[:,1].detach().numpy()))#DEBUGGING
-    
+    print("DEBUGGING: utils.py np.unique(np.squeeze(test_Y.detch().numpy())) = ",np.unique(np.squeeze(test_Y.detch().numpy())))#DEBUGGING
+    print("DEBUGGING: np.squeeze(test_Y.detach().numpy()) = ",np.squeeze(test_Y.detach().numpy()))#DEBUGGING
     auc = roc_auc_score(np.squeeze(test_Y.detach().numpy()), probs_Y[:,1].detach().numpy())
     if verbose: print(f'AUC = {auc:.4f}')
 

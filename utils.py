@@ -175,7 +175,7 @@ def load_graph_dataset(
     edge_feature_dim = this_dataset.graphs[0].edata[ekey].shape[-1] if ekey != '' else 0
 
     # Shuffle entire dataset
-    if shuffle: this_dataset.shuffle()
+    if shuffle: this_dataset.shuffle() #TODO: Make the shuffling to dataloading non-biased???
 
     # Get training subset
     if indices is not None:
@@ -1159,6 +1159,8 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
     f.savefig(os.path.join(log_dir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    print("DEBUGGING: np.unique(test_Y.detach().numpy()) = ",np.unique(test_Y.detach().numpy()))#DEBUGGING
 
     # Get ROC curve
     pfn_fp, pfn_tp, threshs = roc_curve(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())

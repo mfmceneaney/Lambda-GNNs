@@ -1163,8 +1163,9 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     # Get area under the ROC curve
     print("DEBUGGING: utils.py np.shape(test_Y.detach().numpy()) = ",np.shape(np.squeeze(test_Y.detach().numpy())))#DEBUGGING
     print("DEBUGGING: utils.py np.shape(probs_Y[:,1].detach().numpy()) = ",np.shape(probs_Y[:,1].detach().numpy()))#DEBUGGING
-    print("DEBUGGING: utils.py np.unique(np.squeeze(test_Y.detch().numpy())) = ",np.unique(np.squeeze(test_Y.detch().numpy())))#DEBUGGING
+    print("DEBUGGING: utils.py np.unique(np.squeeze(test_Y.detach().numpy())) = ",np.unique(np.squeeze(test_Y.detach().numpy())))#DEBUGGING
     print("DEBUGGING: np.squeeze(test_Y.detach().numpy()) = ",np.squeeze(test_Y.detach().numpy()))#DEBUGGING
+
     auc = roc_auc_score(np.squeeze(test_Y.detach().numpy()), probs_Y[:,1].detach().numpy())
     if verbose: print(f'AUC = {auc:.4f}')
 

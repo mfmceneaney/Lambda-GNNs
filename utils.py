@@ -1264,7 +1264,7 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
         criterion = nn.CrossEntropyLoss()
 
         # Make sure log/save directories exist
-        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number)
+        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number+1)
         try:
             os.makedirs(args.log+'/'+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
         except FileExistsError:
@@ -1451,7 +1451,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         dom_criterion   = nn.CrossEntropyLoss()
 
         # Make sure log/save directories exist
-        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number)
+        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number+1)
         try:
             os.makedirs(args.log+'/'+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
         except FileExistsError:

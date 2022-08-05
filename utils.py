@@ -1166,10 +1166,6 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     pfn_fp, pfn_tp, threshs = roc_curve(test_Y.detach().numpy(), probs_Y[:,1].detach().numpy())
 
     # Get area under the ROC curve
-    print("DEBUGGING: utils.py np.shape(test_Y.detach().numpy()) = ",np.shape(np.squeeze(test_Y.detach().numpy())))#DEBUGGING
-    print("DEBUGGING: utils.py np.shape(probs_Y[:,1].detach().numpy()) = ",np.shape(probs_Y[:,1].detach().numpy()))#DEBUGGING
-    print("DEBUGGING: utils.py np.unique(np.squeeze(test_Y.detach().numpy())) = ",np.unique(np.squeeze(test_Y.detach().numpy())))#DEBUGGING
-    print("DEBUGGING: np.squeeze(test_Y.detach().numpy()) = ",np.squeeze(test_Y.detach().numpy()))#DEBUGGING
 
     auc = roc_auc_score(np.squeeze(test_Y.detach().numpy()), probs_Y[:,1].detach().numpy())
     if verbose: print(f'AUC = {auc:.4f}')
@@ -1194,7 +1190,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
     plt.ylim(0, 1)
 
     # make legend and show plot
-    plt.legend([model.name+f": AUC={auc:.4f}"],loc='lower left', frameon=False)
+    plt.legend([model.name+f": AUC={auc:.4f} acc={test_acc:.4f}"],loc='lower left', frameon=False)
     f.savefig(os.path.join(log_dir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
 
     ##########################################################
@@ -1213,13 +1209,8 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, ma
 
     return (auc,test_acc) #NOTE: Needed for optimization_study() below.
 
-def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
-    #NOTE: As of right now log_dir='logs/' should end with the slash
 
-    # # Load validation data
-    # test_dataset = GraphDataset(args.prefix+args.dataset)#TODO: GET RID OF THIS!!!
-    # test_dataset.load()
-    # test_dataset = Subset(test_dataset,range(int(len(test_dataset)*args.split)))
+def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
 
     def objective(trial):
 
@@ -1251,9 +1242,6 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
 
         # Instantiate model, optimizer, scheduler, and loss
         model = GIN(nlayers,nmlp,nfeatures,hdim,nclasses,do,args.learn_eps,args.npooling,args.gpooling).to(device)
-        # Make models parallel if multiple gpus available
-        # if device.type=='cuda' and device.index==None:
-        #     model = DataParallel(model)
         optimizer = optim.Adam(model.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=gamma, patience=args.patience,
             threshold=args.thresh, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=args.verbose)
@@ -1304,14 +1292,20 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
             verbose=True
         )
 
-        return metrics[0]
+        return 1.0 - metrics[0] #NOTE: This is so you maximize AUC since can't figure out how to create sqlite3 study with maximization at the moment 8/5/22
 
     #----- MAIN PART -----#
+    
+    # Load or create pruner, sampler, and study
     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
     sampler = TPESampler() #TODO: Add command line option for selecting different sampler types.
-    study = optuna.create_study(sampler=sampler,direction="maximize", pruner=pruner)
+    study = None
     if args.db_path is not None:
-        study = optuna.load_study(study_name=args.study_name, storage='sqlite:///'+args.db_path) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
+        study = optuna.load_study(study_name=args.study_name, storage='sqlite:///'+args.db_path, sampler=sampler, pruner=pruner) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
+    else:
+        optuna.create_study(sampler=sampler,direction="minimize", pruner=pruner)
+
+    # Run optimization
     study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
     trial = study.best_trial
 

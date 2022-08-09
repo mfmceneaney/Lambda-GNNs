@@ -1511,7 +1511,7 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
             verbose=True
         )
 
-        return metrics[0] #NOTE: MAXIMIZED BASED ON AUC???!!?! #TODO: MENTION THIS IN WRITEUP...
+        return 1.0 - metrics[0] #NOTE: This is so you maximize AUC since can't figure out how to create sqlite3 study with maximization at the moment 8/9/22
 
     #----- MAIN PART -----#
     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()

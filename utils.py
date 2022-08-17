@@ -973,7 +973,8 @@ def train_dagnn(
 
     return logs
     
-def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=0.75, max_events=1e10, log_dir="logs/",verbose=True):
+def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max_events=1e20 , log_dir="logs/",verbose=True):
+    #TODO: Update args defaults for split and max_events!
 
     # Load validation data
     test_dataset = GraphDataset(prefix+dataset) if eval_loader is None else eval_loader.dataloader.dataset # Make sure this is copied into ~/.dgl folder

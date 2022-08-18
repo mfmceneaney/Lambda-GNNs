@@ -976,6 +976,14 @@ def train_dagnn(
 def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max_events=1e20 , log_dir="logs/",verbose=True):
     #TODO: Update args defaults for split and max_events!
 
+    #TODO: Make these options...
+    plt.rc('font', size=20) #controls default text size                                                                                                                     
+    plt.rc('axes', titlesize=25) #fontsize of the title                                                                                                                     
+    plt.rc('axes', labelsize=25) #fontsize of the x and y labels                                                                                                            
+    plt.rc('xtick', labelsize=20) #fontsize of the x tick labels                                                                                                            
+    plt.rc('ytick', labelsize=20) #fontsize of the y tick labels                                                                                                            
+    plt.rc('legend', fontsize=15) #fontsize of the legend
+
     # Load validation data
     test_dataset = GraphDataset(prefix+dataset) if eval_loader is None else eval_loader.dataloader.dataset # Make sure this is copied into ~/.dgl folder
     if eval_loader is None:
@@ -1531,7 +1539,15 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-def evaluate_on_data(model,device,dataset="", prefix="", split=0.1, log_dir="logs/",verbose=True):
+def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="logs/",verbose=True):
+
+    #TODO: Make these options...
+    plt.rc('font', size=20) #controls default text size                                                                                                                     
+    plt.rc('axes', titlesize=25) #fontsize of the title                                                                                                                     
+    plt.rc('axes', labelsize=25) #fontsize of the x and y labels                                                                                                            
+    plt.rc('xtick', labelsize=20) #fontsize of the x tick labels                                                                                                            
+    plt.rc('ytick', labelsize=20) #fontsize of the y tick labels                                                                                                            
+    plt.rc('legend', fontsize=15) #fontsize of the legend
 
     # Load validation data
     test_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder

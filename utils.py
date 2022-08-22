@@ -291,9 +291,9 @@ def train(
 
     # Make sure log/save directories exist
     try:
-        os.makedirs(log_dir+"tb_logs/tmp") #NOTE: Do NOT use os.path.join() here since it requires that the directory exist.
+        os.makedirs(log_dir+"/tb_logs/tmp") #NOTE: Do NOT use os.path.join() here since it requires that the directory exist.
     except Exception:
-        if verbose: print("Could not create directory:",os.path.join(log_dir,"tb_logs/tmp"))
+        if verbose: print("Could not create directory:",os.path.join(log_dir,"/tb_logs/tmp"))
 
     # # Make model parallel if training with multiple gpus
     # if device.type=='cuda' and device.index==None:
@@ -585,9 +585,9 @@ def train_dagnn(
 
     # Make sure log/save directories exist
     try:
-        os.makedirs(log_dir+"tb_logs/tmp") #NOTE: Do NOT use os.path.join() here since it requires that the directory exist.
+        os.makedirs(log_dir+"/tb_logs/tmp") #NOTE: Do NOT use os.path.join() here since it requires that the directory exist.
     except Exception:
-        if verbose: print("Could not create directory:",os.path.join(log_dir,"tb_logs/tmp"))
+        if verbose: print("Could not create directory:",os.path.join(log_dir,"/tb_logs/tmp"))
 
     # # Make model parallel if training with multiple gpus
     # if device.type=='cuda' and device.index==None:

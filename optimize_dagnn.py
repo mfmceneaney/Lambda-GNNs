@@ -136,8 +136,8 @@ def main():
     try: os.mkdir(args.log)
     except FileExistsError: print('Directory:',args.log,'already exists!')
 
-    try: os.system('optuna create-study --skip-if-exists --study-name "'+args.study_name+'" --storage "sqlite:///'+args.db_path+'"')
-    except Exception: print('Could not create database for distributed optimization')
+    # try: os.system('optuna create-study --skip-if-exists --study-name "'+args.study_name+'" --storage "sqlite:///'+args.db_path+'"')
+    # except Exception: print('Could not create database for distributed optimization')
 
     # Run optimization study
     optimization_study_dagnn(args,device=device)

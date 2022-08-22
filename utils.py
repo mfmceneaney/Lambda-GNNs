@@ -1219,7 +1219,13 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     return (auc,test_acc) #NOTE: Needed for optimization_study() below.
 
 
-def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
+def optimization_study(
+    args,
+    device=torch.device('cpu'),
+    log_interval=10,
+    log_dir="logs/",
+    save_path="model",
+    verbose=True):
 
     def objective(trial):
 
@@ -1326,7 +1332,12 @@ def optimization_study(args,device=torch.device('cpu'),log_interval=10,log_dir="
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log_dir="logs/",save_path="torch_models",verbose=True):
+def optimization_study_dagnn(
+    args,device=torch.device('cpu'),
+    log_interval=10,
+    log_dir="logs/",
+    save_path="torch_models",
+    verbose=True):
     #NOTE: As of right now log_dir='logs/' should end with the slash
 
     # # Load validation data
@@ -1381,8 +1392,6 @@ def optimization_study_dagnn(args,device=torch.device('cpu'),log_interval=10,log
         step  = args.step[0] if args.step[0] == args.step[1] else trial.suggest_int("step",args.step[0],args.step[1])
         gamma = args.gamma[0] if args.gamma[0] == args.gamma[1] else trial.suggest_float("gamma",args.gamma[0],args.gamma[1])
         max_epochs = args.epochs
-
-        # Setup data and model
 
         # Setup data and model #NOTE: DO THIS HERE SINCE IT DEPENDS ON BATCH SIZE. #TODO: NOTE HOPEFULLY ALL BELOW WORKS...
         train_dataloader, val_dataloader, eval_loader, dom_train_loader, dom_val_loader, nclasses, nfeatures, nfeatures_edge = [None for i in range(8)]

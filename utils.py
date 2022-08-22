@@ -1317,7 +1317,7 @@ def optimization_study(
     study = optuna.create_study(storage='sqlite:///'+args.db_path, sampler=sampler,pruner=pruner, study_name=args.study_name, direction="minimize", load_if_exists=True) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
 
     # Run optimization
-    study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
+    study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout, gc_after_trial=True) #NOTE: gc_after_trial=True is to avoid OOM errors see https://optuna.readthedocs.io/en/stable/faq.html#out-of-memory-gc-collect
     trial = study.best_trial
 
     if verbose:
@@ -1531,7 +1531,7 @@ def optimization_study_dagnn(
     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
     sampler = TPESampler() #TODO: Add command line option for selecting different sampler types.
     study = optuna.create_study(storage='sqlite:///'+args.db_path, sampler=sampler,pruner=pruner, study_name=args.study_name, direction="minimize", load_if_exists=True) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
-    study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
+    study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout, gc_after_trial=True) #NOTE: gc_after_trial=True is to avoid OOM errors see https://optuna.readthedocs.io/en/stable/faq.html#out-of-memory-gc-collect
     trial = study.best_trial
 
     if verbose:

@@ -1314,11 +1314,7 @@ def optimization_study(
     # Load or create pruner, sampler, and study
     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
     sampler = TPESampler() #TODO: Add command line option for selecting different sampler types.
-    study = None
-    if args.db_path is not None:
-        study = optuna.load_study(study_name=args.study_name, storage='sqlite:///'+args.db_path, sampler=sampler, pruner=pruner) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
-    else:
-        optuna.create_study(sampler=sampler,direction="minimize", pruner=pruner)
+    study = optuna.create_study(storage='sqlite:///'+args.db_path, sampler=sampler,pruner=pruner, study_name=args.study_name, direction="minimize", load_if_exists=True) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
 
     # Run optimization
     study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
@@ -1534,9 +1530,7 @@ def optimization_study_dagnn(
     #----- MAIN PART -----#
     pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
     sampler = TPESampler() #TODO: Add command line option for selecting different sampler types.
-    study = optuna.create_study(sampler=sampler,direction="maximize", pruner=pruner)
-    if args.db_path is not None:
-        study = optuna.load_study(study_name=args.study_name, storage='sqlite:///'+args.db_path) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
+    study = optuna.create_study(storage='sqlite:///'+args.db_path, sampler=sampler,pruner=pruner, study_name=args.study_name, direction="minimize", load_if_exists=True) #TODO: Add options for different SQL programs: Postgre, MySQL, etc.
     study.optimize(objective, n_trials=args.ntrials, timeout=args.timeout)
     trial = study.best_trial
 

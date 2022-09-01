@@ -19,6 +19,11 @@ which python
 deactivate
 ```
 
+Also a good idea to put your venv packages first in your python path with:
+```
+export PYTHONPATH=/full/path/to/venv_cuda/lib/python*/site-packages/:$PYTHONPATH
+```
+
 Start an interactive GPU job (not entirely sure if this is necessary but it’s nice for checking your CUDA version):
 
 ```

@@ -1613,7 +1613,7 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     
     # Fit output of NN
     print("DEBUGGING: hdata[0][-1] = ",hdata[0][-1])#DEBUGGING
-    N, beta, m, loc, scale, A, B, C = 500, 1, 1.112, 1.115, 0.008, hdata[0][-1], 37, 1.24
+    N, beta, m, loc, scale, A, B, C = 5, 1, 1.112, 1.115, 0.008, hdata[0][-1], 37, 1.24
     if A==0: A = 0.1#DEBUGGING
     d_N, d_beta, d_m, d_loc, d_scale, d_A, d_B, d_C = N/0.01, beta/0.1, m/0.1, loc/0.1, scale/0.01, A/10, B/0.1, C/0.1
     #d_N, d_beta, d_m, d_loc, d_scale, d_A, d_B, d_C = N/0.001, beta/0.001, m/0.01, loc/0.001, scale/0.001, A/1, B/0.1, C/5

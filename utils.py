@@ -1304,8 +1304,19 @@ def optimization_study(
             split=args.split,
             max_events=args.max_events,
             log_dir=trialdir,
-            verbose=True
+            verbose=args.verbose
         )
+
+        #NOTE: #TODO: add extra args to optimize script parser and save hyperparameter choices in running script???? Or just use mlflow....
+        # evaluate_on_data(
+        #     model,
+        #     device,
+        #     dataset=args.datadataset,
+        #     prefix=args.prefix,
+        #     split=args.split,
+        #     log_dir=trialdir,
+        #     verbose=args.verbose
+        # )
 
         return 1.0 - metrics[0] #NOTE: This is so you maximize AUC since can't figure out how to create sqlite3 study with maximization at the moment 8/5/22
 

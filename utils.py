@@ -496,7 +496,7 @@ def train(
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend()
-    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     # Create training/validation accuracy plot
     f = plt.figure()
@@ -507,7 +507,7 @@ def train(
     plt.legend(loc='best', frameon=False)
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
-    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     return logs
 
@@ -956,7 +956,7 @@ def train_dagnn(
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend()
-    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     # Create training/validation accuracy plot
     f = plt.figure()
@@ -969,7 +969,7 @@ def train_dagnn(
     plt.legend(loc='best', frameon=False)
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
-    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     return logs
     
@@ -1095,7 +1095,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     # Plot mass decisions separated into signal/background
     bins = 100
@@ -1107,7 +1107,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'test_metrics_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+    f.savefig(os.path.join(log_dir,'test_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     # Plot correct mass decisions separated into signal/background
     bins = 100
@@ -1119,7 +1119,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'test_metrics_mass_true_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+    f.savefig(os.path.join(log_dir,'test_metrics_mass_true_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     # Plot incorrect mass decisions separated into signal/background
     bins = 100
@@ -1131,7 +1131,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'test_metrics_mass_false_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+    f.savefig(os.path.join(log_dir,'test_metrics_mass_false_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     # Plot MC-Matched distributions
     bins = 100
@@ -1143,7 +1143,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'mc_matched_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+    f.savefig(os.path.join(log_dir,'mc_matched_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     # Plot MC-Matched distributions for NN-identified signal
     bins = 100
@@ -1155,7 +1155,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'mc_matched_nn_sig_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+    f.savefig(os.path.join(log_dir,'mc_matched_nn_sig_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     # Plot MC-Matched distributions for NN-identified background
     bins = 100
@@ -1167,7 +1167,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+    f.savefig(os.path.join(log_dir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     print("DEBUGGING: np.unique(test_Y.detach().numpy()) = ",np.unique(test_Y.detach().numpy()))#DEBUGGING
 
@@ -1200,7 +1200,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
 
     # make legend and show plot
     plt.legend([model.name+f": AUC={auc:.4f} acc={test_acc:.4f}"],loc='lower left', frameon=False)
-    f.savefig(os.path.join(log_dir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
+    f.savefig(os.path.join(log_dir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+".png"))
 
     ##########################################################
     # Plot testing decisions
@@ -1214,7 +1214,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
     plt.xlabel('output')
     plt.ylabel('counts')
-    f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
+    f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+".png"))
 
     return (auc,test_acc) #NOTE: Needed for optimization_study() below.
 
@@ -1267,7 +1267,7 @@ def optimization_study(
         criterion = nn.CrossEntropyLoss()
 
         # Make sure log/save directories exist
-        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number+1)
+        trialdir = args.study_name+'_trial_'+str(trial.number+1)
         try:
             os.makedirs(args.log+'/'+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
         except FileExistsError:
@@ -1470,7 +1470,7 @@ def optimization_study_dagnn(
         dom_criterion   = nn.CrossEntropyLoss()
 
         # Make sure log/save directories exist
-        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number+1)
+        trialdir = args.study_name+'_trial_'+str(trial.number+1)
         try:
             os.makedirs(args.log+'/'+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
         except FileExistsError:
@@ -1687,7 +1687,7 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
 
     ##########################################################
     # Plot testing decisions
@@ -1701,7 +1701,7 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
     plt.xlabel('output')
     plt.ylabel('counts')
-    f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
+    f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+".png"))
 
 #------------------------- Classes -------------------------#
 

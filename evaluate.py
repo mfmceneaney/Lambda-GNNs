@@ -41,10 +41,10 @@ def main():
                         help='Number of hidden dimensions in model (default: 64)')
     parser.add_argument('--dropout', type=float, default=0.8,
                         help='Dropout rate for final layer (default: 0.8)')
-    parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "average"],
-                        help='Pooling type over entire graph: sum or average')
-    parser.add_argument('--npooling', type=str, default="max", choices=["sum", "average", "max"],
-                        help='Pooling type over neighboring nodes: sum, average or max')
+    parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "mean"],
+                        help='Pooling type over entire graph: sum or mean')
+    parser.add_argument('--npooling', type=str, default="max", choices=["sum", "mean", "max"],
+                        help='Pooling type over neighboring nodes: sum, mean or max')
     parser.add_argument('--learn_eps', action="store_true",
                                         help='Whether to learn the epsilon weighting for the center nodes. Does not affect training accuracy though.')
     parser.add_argument('--verbose', action="store_true",
@@ -74,6 +74,10 @@ def main():
     # Input dataset train/val max total events
     parser.add_argument('--max_events', type=float, default=1e5,
                         help='Max number of train/val events to use (default: 1e5)')
+
+    # Data indexing option
+    parser.add_argument('--indices', type=int, default=None, nargs='*',
+                    help='Indices delimiting subsets of data to use for training, validation, and optionally evaluation, e.g. 0 80 90 100 (default: None)')
 
     args = parser.parse_args()
 
@@ -106,7 +110,7 @@ def main():
     except FileExistsError: print('Directory:',args.log,'already exists!')
 
     # Train model
-    evaluate(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split, log_dir=args.log, verbose=args.verbose)
+    evaluate(model, device, dataset=args.dataset, eval_loader=eval_loader, prefix=args.prefix, split=args.split, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
 if __name__ == '__main__':

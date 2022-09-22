@@ -79,9 +79,10 @@ def main():
 
     # Set up and seed devices
     torch.manual_seed(0)
-    device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(0)
+    # device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
+    # if torch.cuda.is_available():
+    #     torch.cuda.manual_seed_all(0)
+    device = torch.device('cpu')#DEBUGGING
 
     # Setup data and model
     nclasses, nfeatures = get_graph_dataset_info(dataset=args.dataset, prefix=args.prefix,

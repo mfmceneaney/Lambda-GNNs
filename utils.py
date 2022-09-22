@@ -983,6 +983,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.rc('xtick', labelsize=20) #fontsize of the x tick labels                                                                                                            
     plt.rc('ytick', labelsize=20) #fontsize of the y tick labels                                                                                                            
     plt.rc('legend', fontsize=15) #fontsize of the legend
+    figsize=(16,10)
 
     # Load validation data
     test_dataset = GraphDataset(prefix+dataset) if eval_loader is None else eval_loader.dataset # Make sure this is copied into ~/.dgl folder
@@ -1055,7 +1056,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # Plot mass decisions separated into signal/background
     bins = 100
     low_high = (1.08,1.24)#(1.1,1.13)
-    f = plt.figure(figsize=(16,10))
+    f = plt.figure(figsize=figsize)
     plt.title('Separated mass distribution')
     hdata = plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
     
@@ -1100,7 +1101,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # Plot mass decisions separated into signal/background
     bins = 100
     # low_high = (1.1,1.13)
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.title('Separated mass distribution')
     plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
     plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
@@ -1112,7 +1113,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # Plot correct mass decisions separated into signal/background
     bins = 100
     # low_high = (1.1,1.13)
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.title('Separated mass distribution (true)')
     plt.hist(mass_sig_true[~mass_sig_true.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
     plt.hist(mass_bg_true[~mass_bg_true.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
@@ -1124,7 +1125,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # Plot incorrect mass decisions separated into signal/background
     bins = 100
     # low_high = (1.1,1.13)
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.title('Separated mass distribution (false)')
     plt.hist(mass_sig_false[~mass_sig_false.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
     plt.hist(mass_bg_false[~mass_bg_false.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
@@ -1136,7 +1137,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # Plot MC-Matched distributions
     bins = 100
     # low_high = (1.1,1.13)
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.title('Separated mass distribution MC-matched')
     plt.hist(mass_sig_MC[~mass_sig_MC.mask], color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
     plt.hist(mass_bg_MC[~mass_bg_MC.mask], color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
@@ -1148,7 +1149,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # Plot MC-Matched distributions for NN-identified signal
     bins = 100
     # low_high = (1.1,1.13)
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.title('NN-identified signal mass distribution MC-matched')
     plt.hist(mass_sig_true[~mass_sig_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
     plt.hist(mass_sig_false[~mass_sig_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
@@ -1160,7 +1161,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # Plot MC-Matched distributions for NN-identified background
     bins = 100
     # low_high = (1.1,1.13)
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.title('NN-identified bg mass distribution MC-matched')
     plt.hist(mass_bg_true[~mass_bg_true.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
     plt.hist(mass_bg_false[~mass_bg_false.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
@@ -1168,6 +1169,262 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
     f.savefig(os.path.join(log_dir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+
+    #-----#
+    #NOTE: ADDED DEBUGGING
+
+    # pid, fraction =  2 5 %
+    # pid, fraction =  3 0 %
+    # pid, fraction =  91 1 %
+    # pid, fraction =  92 74 %
+    # pid, fraction =  2212 0 %
+    # pid, fraction =  3114 1 %
+    # pid, fraction =  3212 8 %
+    # pid, fraction =  3214 3 %
+    # pid, fraction =  3224 3 %
+
+    unique_ppa_pids = np.unique(
+                        test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float(),
+                        return_counts=True #NOTE: IMPORTANT!
+                        )
+    available_labels = unique_ppa_pids[0]
+    counts_labels    = unique_ppa_pids[1]
+    print("DEBUGGING: LABEL COUNTS     = ",[int(el) for el in counts_labels])#DEBUGGING
+    print("DEBUGGING: AVAILABLE LABELS = ",[int(el) for el in available_labels])#DEBUGGING
+
+    labels, counts = available_labels, counts_labels
+    labels = [int(el) for el in labels]
+    print("labels = ",labels)#DEBUGGING
+    print("counts = ",counts)#DEBUGGING
+    total = np.sum(counts)
+    print("total = ",total)#DEBUGGING
+    bank = {labels[idx]:round(el,4) for idx, el in enumerate(counts/total)}
+    for el in bank.keys():
+        print("pid, fraction = ",el,int(bank[el]*100),"%")
+
+    x_multi_sig_true  = [] #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
+    x_multi_sig_false = []
+    x_multi_bg_true   = []
+    x_multi_bg_false  = []
+    labels_sig_true   = [] #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
+    labels_sig_false  = []
+    labels_bg_true    = [] 
+    labels_bg_false   = []
+
+    name_bank = {
+        2 : "u",
+        91 : "cluster (91)",
+        92 : "string (92)",
+        3224 : "$\Sigma^{*+}$",
+        3214 : "$\Sigma^{*0}$",
+        3212 : "$\Sigma^{0}$",
+        3114 : "$\Sigma^{*-}$",
+    }
+
+    for my_pid__ in bank.keys():
+        fill_option = False
+        if bank[my_pid__]>0.01:
+            fill_option = True
+            print("ADDING!!!")
+        mass_sig_true_from_target  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
+                                    mask=np.logical_or(
+                                        ~(my_pid__ == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float()),
+                                        np.logical_or(
+                                            ~(torch.squeeze(argmax_Y) == 1),
+                                            ~(torch.squeeze(argmax_Y) == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float())
+                                        )
+                                    )
+                                )
+
+        mass_sig_false_from_target  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
+                                    mask=np.logical_or(
+                                        ~(my_pid__ == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float()),
+                                        np.logical_or(
+                                            ~(torch.squeeze(argmax_Y) == 1),
+                                            ~(torch.squeeze(argmax_Y) != test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float())
+                                        )
+                                    )
+                                )
+
+        # Plot MC-Matched distributions for NN-identified signal
+        bins = 100
+        # low_high = (1.1,1.13)
+        f = plt.figure(figsize=figsize)
+        plt.title(f"Lambda Parent PID {my_pid__:.0f} NN-identified signal mass distribution MC-matched")
+        plt.hist(mass_sig_true_from_target[~mass_sig_true_from_target.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
+        plt.hist(mass_sig_false_from_target[~mass_sig_false_from_target.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
+        plt.legend(loc='upper left', frameon=False)
+        plt.ylabel('Counts')
+        plt.xlabel('Invariant mass (GeV)')
+        f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_sig_mass_"+datetime.datetime.now().strftime("%F")+'.png'))
+
+
+        #NOTE: NOW LOOK AT NN-IDENTIFIED BG
+
+        mass_bg_true_from_target  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
+                                    mask=np.logical_or(
+                                        ~(my_pid__ == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float()),
+                                        np.logical_or(
+                                            ~(torch.squeeze(argmax_Y) == 0),
+                                            ~(torch.squeeze(argmax_Y) == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float())
+                                        )
+                                    )
+                                )
+
+        mass_bg_false_from_target  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
+                                    mask=np.logical_or(
+                                        ~(my_pid__ == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float()),
+                                        np.logical_or(
+                                            ~(torch.squeeze(argmax_Y) == 0),
+                                            ~(torch.squeeze(argmax_Y) != test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float())
+                                        )
+                                    )
+                                )
+
+        # Plot MC-Matched distributions for NN-identified signal
+        bins = 100
+        # low_high = (1.1,1.13)
+        f = plt.figure(figsize=figsize)
+        plt.title(f"Proton Parent Parent PID {my_pid__:.0f} NN-identified background mass distribution MC-matched")
+        plt.hist(mass_bg_true_from_target[~mass_bg_true_from_target.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
+        plt.hist(mass_bg_false_from_target[~mass_bg_false_from_target.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
+        plt.legend(loc='upper left', frameon=False)
+        plt.ylabel('Counts')
+        plt.xlabel('Invariant mass (GeV)')
+        f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_bg_mass_"+datetime.datetime.now().strftime("%F")+'.png'))
+
+        if fill_option:
+            x_multi_sig_true.append(mass_sig_true_from_target[~mass_sig_true_from_target.mask]) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
+            x_multi_sig_false.append(mass_sig_false_from_target[~mass_sig_false_from_target.mask])
+            x_multi_bg_true.append(mass_bg_true_from_target[~mass_bg_true_from_target.mask])
+            x_multi_bg_false.append(mass_bg_false_from_target[~mass_bg_false_from_target.mask])
+            labels_sig_true.append("Sig true "+name_bank[my_pid__]) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
+            labels_sig_false.append("Sig false "+name_bank[my_pid__])
+            labels_bg_true.append("Bg true "+name_bank[my_pid__])
+            labels_bg_false.append("Bg false "+name_bank[my_pid__])
+
+    # RESHUFFLE DATASETS TO CONTRIBUTIONS ARE PLOTTED SMALLEST TO LARGEST
+    def reorder_(x,labels):
+
+        idcs_ = {len(x[idx]):idx for idx in range(len(x))} #NOTE: ALL SHOULD HAVE SAME LENGTH???
+        idcs = []
+        print("---------------------------------------------")
+        print("idcs_.keys() = ",idcs_.keys())#DEBUGGING
+        print("np.sort(list(idcs_.keys())) = ",np.sort(list(idcs_.keys())))#DEBUGGING
+        for idx in np.sort(list(idcs_.keys())): #NOTE: SORT BY COUNTS, HERE SMALLEST COUNTS ADDED FIRST
+            idcs.append(idcs_[idx])
+        print("DEBUGGING:AFTER idcs_ = ",idcs_)#DEBUGGING
+        print("DEBUGGING:AFTER idcs = ",idcs)#DEBUGGING
+        x       = [x[idx]       for idx in idcs]
+        labels  = [labels[idx]  for idx in idcs]
+
+        return x, labels
+
+    x_multi_sig_true, labels_sig_true   = reorder_(x_multi_sig_true, labels_sig_true)
+    x_multi_sig_false, labels_sig_false = reorder_(x_multi_sig_false, labels_sig_false)
+    x_multi_bg_true, labels_bg_true     = reorder_(x_multi_bg_true, labels_bg_true )
+    x_multi_bg_false, labels_bg_false   = reorder_(x_multi_bg_false, labels_bg_false)
+
+    # x_multi_sig_true  = [x_multi_sig_true[idx]  for idx in idcs]
+    # x_multi_sig_false = [x_multi_sig_false[idx] for idx in idcs]
+    # x_multi_bg_true   = [x_multi_bg_true[idx]   for idx in idcs]
+    # x_multi_bg_false  = [x_multi_bg_false[idx]  for idx in idcs]
+
+    # labels_sig_true  = [labels_sig_true[idx]  for idx in idcs]
+    # labels_sig_false = [labels_sig_false[idx] for idx in idcs]
+    # labels_bg_true   = [labels_bg_true[idx]   for idx in idcs]
+    # labels_bg_false  = [labels_bg_false[idx]  for idx in idcs]
+
+
+    print("DEBUGGING: labels_sig_true = ",labels_sig_true)#DEBUGGING
+    print("DEBUGGING: labels_sig_false = ",labels_sig_false)#DEBUGGING
+    print("DEBUGGING: labels_bg_true = ",labels_bg_true)#DEBUGGING
+    print("DEBUGGING: labels_bg_false = ",labels_bg_false)#DEBUGGING
+
+    print("DEBUGGING: x_multi_sig_true")#DEBUGGING
+    for el in x_multi_sig_true:
+        print("\tnp.shape(el) = ",np.shape(el))#DEBUGGING
+
+    # PLOT FULL SPECTRUM SIG/BG TRUE/FALSE
+    # Make a multiple-histogram of data-sets with different length.
+    f = plt.figure(figsize=figsize)
+    x_multi_sig = [mass_sig_false[~mass_sig_false.mask],mass_sig_true[~mass_sig_true.mask]]
+    x_multi_bg  = [mass_bg_true[~mass_bg_true.mask], mass_bg_false[~mass_bg_false.mask]]
+    plt.title('NN-Identified Mass Spectrum Proton Parent Parent Decomposition')
+    plt.hist(x_multi_sig, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('sig_false','sig_true')) #NOTE: MAKE SURE THESE MATCH UP!!!
+    plt.hist(x_multi_bg, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('bg_true','bg_false'))
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('Invariant mass (GeV)')
+    f.savefig(os.path.join(log_dir,"parent_decomposition_full.png"))
+
+    # SIG BOTH TRUE/FALSE
+    # Make a multiple-histogram of data-sets with different length.
+    f = plt.figure(figsize=figsize)
+    plt.title('NN-Identified Signal Proton Parent Parent Decomposition')
+    plt.hist(x_multi_sig_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_true)
+    plt.hist(x_multi_sig_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_false)
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('Invariant mass (GeV)')
+    f.savefig(os.path.join(log_dir,"parent_decomposition_sig.png"))
+    
+    # BG BOTH TRUE/FALSE
+    # Make a multiple-histogram of data-sets with different length.
+    f = plt.figure(figsize=figsize)
+    plt.title('NN-Identified Background Proton Parent Parent Decomposition')
+    plt.hist(x_multi_bg_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_true)
+    plt.hist(x_multi_bg_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_false)
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('Invariant mass (GeV)')
+    f.savefig(os.path.join(log_dir,"parent_decomposition_bg.png"))
+
+    # JUST SIG TRUE
+    # Make a multiple-histogram of data-sets with different length.
+    f = plt.figure(figsize=figsize)
+    plt.title('NN-Identified True Signal Proton Parent Parent Decomposition')
+    plt.hist(x_multi_sig_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_true)
+    # plt.hist(x_multi_sig_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_false)
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('Invariant mass (GeV)')
+    f.savefig(os.path.join(log_dir,"parent_decomposition_sig_true.png"))
+
+    # JUST SIG FALSE
+    # Make a multiple-histogram of data-sets with different length.
+    f = plt.figure(figsize=figsize)
+    plt.title('NN-Identified False Signal Proton Parent Parent Decomposition')
+    # plt.hist(x_multi_sig_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_true)
+    plt.hist(x_multi_sig_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_false)
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('Invariant mass (GeV)')
+    f.savefig(os.path.join(log_dir,"parent_decomposition_sig_false.png"))
+
+    # JUST BG TRUE
+    # Make a multiple-histogram of data-sets with different length.
+    f = plt.figure(figsize=figsize)
+    plt.title('NN-Identified True Background Proton Parent Parent Decomposition')
+    plt.hist(x_multi_bg_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_true)
+    # plt.hist(x_multi_bg_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_false)
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('Invariant mass (GeV)')
+    f.savefig(os.path.join(log_dir,"parent_decomposition_bg_true.png"))
+
+    # JUST BG FALSE
+    # Make a multiple-histogram of data-sets with different length.
+    f = plt.figure(figsize=figsize)
+    plt.title('NN-Identified False Background Proton Parent Parent Decomposition')
+    # plt.hist(x_multi_bg_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_true)
+    plt.hist(x_multi_bg_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_false)
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('Invariant mass (GeV)')
+    f.savefig(os.path.join(log_dir,"parent_decomposition_bg_false.png"))
+
+    #-----#
 
     print("DEBUGGING: np.unique(test_Y.detach().numpy()) = ",np.unique(test_Y.detach().numpy()))#DEBUGGING
 
@@ -1178,9 +1435,10 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
 
     auc = roc_auc_score(np.squeeze(test_Y.detach().numpy()), probs_Y[:,1].detach().numpy())
     if verbose: print(f'AUC = {auc:.4f}')
+    if verbose: print(f'test_acc = {test_acc:.4f}')#DEBUGGING ADDED
 
     # Create matplotlib plots for ROC curve and testing decisions
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
 
     # Get some nicer plot settings 
     # plt.rcParams['figure.figsize'] = (4,4)#DEBUGGING
@@ -1208,7 +1466,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     low = min(np.min(p) for p in probs_Y[:,1].detach().numpy())
     high = max(np.max(p) for p in probs_Y[:,0].detach().numpy())
     low_high = (low,high)
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.clf()
     plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
     plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')

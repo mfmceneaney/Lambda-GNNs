@@ -983,6 +983,10 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.rc('xtick', labelsize=20) #fontsize of the x tick labels                                                                                                            
     plt.rc('ytick', labelsize=20) #fontsize of the y tick labels                                                                                                            
     plt.rc('legend', fontsize=15) #fontsize of the legend
+
+    plt.rc('font',**{'family':'serif','serif':['Times New Roman']})
+    plt.rc('text', usetex=True)
+
     figsize=(16,10)
 
     # Load validation data
@@ -1089,7 +1093,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     lg += f"A = {round(optParams[5],0)}±{round(pcov[5,5],2)}\n"
     lg += f"β = {round(optParams[6],0)}±{round(pcov[6,6],2)}\n"
     lg += f"M = {round(optParams[7],2)}±{round(pcov[7,7],7)}\n"
-    plt.text(low_high[1]-(low_high[1]-low_high[0])/3,1/2*max(hdata[0]),lg,fontsize=24,linespacing=1.5)
+    plt.text(low_high[1]-(low_high[1]-low_high[0])/3,1/2*max(hdata[0]),lg,fontsize=20,linespacing=1.25) #NOTE: MAKE THESE PARAMS OPTIONS
 
     # Show the graph
     plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
@@ -1212,20 +1216,25 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     labels_bg_false   = []
 
     name_bank = {
+        1 : "d",
         2 : "u",
+        3 : "s",
         91 : "cluster (91)",
         92 : "string (92)",
+        2212 : "p",
         3224 : "$\Sigma^{*+}$",
         3214 : "$\Sigma^{*0}$",
         3212 : "$\Sigma^{0}$",
         3114 : "$\Sigma^{*-}$",
+        3312 : "$\Xi^{-}$",
+        3322 : "$\Xi^{0}$"
     }
 
     for my_pid__ in bank.keys():
         fill_option = False
         if bank[my_pid__]>0.01:
             fill_option = True
-            print("ADDING!!!")
+
         mass_sig_true_from_target  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
                                     mask=np.logical_or(
                                         ~(my_pid__ == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float()),
@@ -1246,17 +1255,17 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
                                     )
                                 )
 
-        # Plot MC-Matched distributions for NN-identified signal
-        bins = 100
-        # low_high = (1.1,1.13)
-        f = plt.figure(figsize=figsize)
-        plt.title(f"Lambda Parent PID {my_pid__:.0f} NN-identified signal mass distribution MC-matched")
-        plt.hist(mass_sig_true_from_target[~mass_sig_true_from_target.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
-        plt.hist(mass_sig_false_from_target[~mass_sig_false_from_target.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
-        plt.legend(loc='upper left', frameon=False)
-        plt.ylabel('Counts')
-        plt.xlabel('Invariant mass (GeV)')
-        f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_sig_mass_"+datetime.datetime.now().strftime("%F")+'.png'))
+        # # Plot MC-Matched distributions for NN-identified signal
+        # bins = 100
+        # # low_high = (1.1,1.13)
+        # f = plt.figure(figsize=figsize)
+        # plt.title(f"Lambda Parent PID {my_pid__:.0f} NN-identified signal mass distribution MC-matched")
+        # plt.hist(mass_sig_true_from_target[~mass_sig_true_from_target.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
+        # plt.hist(mass_sig_false_from_target[~mass_sig_false_from_target.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
+        # plt.legend(loc='upper left', frameon=False)
+        # plt.ylabel('Counts')
+        # plt.xlabel('Invariant mass (GeV)')
+        # f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_sig_mass_"+datetime.datetime.now().strftime("%F")+'.png'))
 
 
         #NOTE: NOW LOOK AT NN-IDENTIFIED BG
@@ -1281,27 +1290,27 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
                                     )
                                 )
 
-        # Plot MC-Matched distributions for NN-identified signal
-        bins = 100
-        # low_high = (1.1,1.13)
-        f = plt.figure(figsize=figsize)
-        plt.title(f"Proton Parent Parent PID {my_pid__:.0f} NN-identified background mass distribution MC-matched")
-        plt.hist(mass_bg_true_from_target[~mass_bg_true_from_target.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
-        plt.hist(mass_bg_false_from_target[~mass_bg_false_from_target.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
-        plt.legend(loc='upper left', frameon=False)
-        plt.ylabel('Counts')
-        plt.xlabel('Invariant mass (GeV)')
-        f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_bg_mass_"+datetime.datetime.now().strftime("%F")+'.png'))
+        # # Plot MC-Matched distributions for NN-identified signal
+        # bins = 100
+        # # low_high = (1.1,1.13)
+        # f = plt.figure(figsize=figsize)
+        # plt.title(f"Proton Parent Parent PID {my_pid__:.0f} NN-identified background mass distribution MC-matched")
+        # plt.hist(mass_bg_true_from_target[~mass_bg_true_from_target.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
+        # plt.hist(mass_bg_false_from_target[~mass_bg_false_from_target.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
+        # plt.legend(loc='upper left', frameon=False)
+        # plt.ylabel('Counts')
+        # plt.xlabel('Invariant mass (GeV)')
+        # f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_bg_mass_"+datetime.datetime.now().strftime("%F")+'.png'))
 
         if fill_option:
             x_multi_sig_true.append(mass_sig_true_from_target[~mass_sig_true_from_target.mask]) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
             x_multi_sig_false.append(mass_sig_false_from_target[~mass_sig_false_from_target.mask])
             x_multi_bg_true.append(mass_bg_true_from_target[~mass_bg_true_from_target.mask])
             x_multi_bg_false.append(mass_bg_false_from_target[~mass_bg_false_from_target.mask])
-            labels_sig_true.append("Sig true "+name_bank[my_pid__]) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
-            labels_sig_false.append("Sig false "+name_bank[my_pid__])
-            labels_bg_true.append("Bg true "+name_bank[my_pid__])
-            labels_bg_false.append("Bg false "+name_bank[my_pid__])
+            labels_sig_true.append(name_bank[my_pid__]) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
+            labels_sig_false.append(name_bank[my_pid__])
+            labels_bg_true.append(name_bank[my_pid__])
+            labels_bg_false.append(name_bank[my_pid__])
 
     # RESHUFFLE DATASETS TO CONTRIBUTIONS ARE PLOTTED SMALLEST TO LARGEST
     def reorder_(x,labels):
@@ -1351,8 +1360,9 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     x_multi_sig = [mass_sig_false[~mass_sig_false.mask],mass_sig_true[~mass_sig_true.mask]]
     x_multi_bg  = [mass_bg_true[~mass_bg_true.mask], mass_bg_false[~mass_bg_false.mask]]
     plt.title('NN-Identified Mass Spectrum Proton Parent Parent Decomposition')
+    plt.hist(x_multi_bg, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('bg_true','bg_false')) #NOTE: ADD BG FIRST SO FALSE SIGNAL IS VISIBLE IN CORRECT COLOR
     plt.hist(x_multi_sig, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('sig_false','sig_true')) #NOTE: MAKE SURE THESE MATCH UP!!!
-    plt.hist(x_multi_bg, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('bg_true','bg_false'))
+    
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
@@ -1362,8 +1372,8 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # Make a multiple-histogram of data-sets with different length.
     f = plt.figure(figsize=figsize)
     plt.title('NN-Identified Signal Proton Parent Parent Decomposition')
-    plt.hist(x_multi_sig_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_true)
-    plt.hist(x_multi_sig_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_false)
+    plt.hist(x_multi_sig_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=["Sig true "+name for name in labels_sig_true])
+    plt.hist(x_multi_sig_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=["Sig false "+name for name in labels_sig_false])
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
@@ -1373,8 +1383,8 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # Make a multiple-histogram of data-sets with different length.
     f = plt.figure(figsize=figsize)
     plt.title('NN-Identified Background Proton Parent Parent Decomposition')
-    plt.hist(x_multi_bg_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_true)
-    plt.hist(x_multi_bg_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_false)
+    plt.hist(x_multi_bg_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=["Bg true "+name for name in labels_bg_true])
+    plt.hist(x_multi_bg_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=["Bg false "+name for name in labels_bg_false])
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
@@ -1383,7 +1393,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # JUST SIG TRUE
     # Make a multiple-histogram of data-sets with different length.
     f = plt.figure(figsize=figsize)
-    plt.title('NN-Identified True Signal Proton Parent Parent Decomposition')
+    plt.title('NN-Identified True Signal $\Lambda$ Parent Decomposition')
     plt.hist(x_multi_sig_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_true)
     # plt.hist(x_multi_sig_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_false)
     plt.legend(loc='upper left', frameon=False)
@@ -1416,7 +1426,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # JUST BG FALSE
     # Make a multiple-histogram of data-sets with different length.
     f = plt.figure(figsize=figsize)
-    plt.title('NN-Identified False Background Proton Parent Parent Decomposition')
+    plt.title('NN-Identified False Background $\Lambda$ Parent Decomposition')
     # plt.hist(x_multi_bg_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_true)
     plt.hist(x_multi_bg_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_false)
     plt.legend(loc='upper left', frameon=False)

@@ -1096,7 +1096,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.text(low_high[1]-(low_high[1]-low_high[0])/3,1/2*max(hdata[0]),lg,fontsize=20,linespacing=1.25) #NOTE: MAKE THESE PARAMS OPTIONS
 
     # Show the graph
-    plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    # plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background') #NOTE: COMMENTED OUT FOR DEBUGGING
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')

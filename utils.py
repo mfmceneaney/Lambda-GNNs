@@ -982,10 +982,10 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.rc('axes', labelsize=25) #fontsize of the x and y labels                                                                                                            
     plt.rc('xtick', labelsize=20) #fontsize of the x tick labels                                                                                                            
     plt.rc('ytick', labelsize=20) #fontsize of the y tick labels                                                                                                            
-    plt.rc('legend', fontsize=15) #fontsize of the legend
+    plt.rc('legend', fontsize=20) #fontsize of the legend
 
-    plt.rc('font',**{'family':'serif','serif':['Times New Roman']})
-    plt.rc('text', usetex=True)
+    # plt.rc('font',**{'family':'serif','serif':['Times New Roman']})
+    # plt.rc('text', usetex=True)
 
     figsize=(16,10)
 
@@ -1360,9 +1360,9 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     x_multi_sig = [mass_sig_false[~mass_sig_false.mask],mass_sig_true[~mass_sig_true.mask]]
     x_multi_bg  = [mass_bg_true[~mass_bg_true.mask], mass_bg_false[~mass_bg_false.mask]]
     plt.title('NN-Identified Mass Spectrum Proton Parent Parent Decomposition')
-    plt.hist(x_multi_bg, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('bg_true','bg_false')) #NOTE: ADD BG FIRST SO FALSE SIGNAL IS VISIBLE IN CORRECT COLOR
     plt.hist(x_multi_sig, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('sig_false','sig_true')) #NOTE: MAKE SURE THESE MATCH UP!!!
-    
+    plt.hist(x_multi_bg, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('bg_true','bg_false')) #NOTE: ADD BG FIRST SO FALSE SIGNAL IS VISIBLE IN CORRECT COLOR
+
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')

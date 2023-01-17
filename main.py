@@ -18,6 +18,10 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.nn import DataParallel
 
+# MoDe Loss Imports
+from modeloss.pytorch import MoDeLoss
+import sys
+
 # Utility Imports
 import argparse, math, datetime, os, psutil, threading
 
@@ -97,6 +101,25 @@ def main():
     parser.add_argument('--indices', type=int, default=None, nargs='*',
                         help='Indices delimiting subsets of data to use for training, validation, and optionally evaluation, e.g. 0 80 90 100 (default: None)')
 
+    # MoDe Loss Nth order option
+    parser.add_argument('--order', type=int, default=-1,
+                        help='Largest order to use for MoDeLoss (default: -1)')
+
+    parser.add_argument('--power', type=int, default=-1,
+                        help='Largest power polynomial to use for MoDeLoss (default: -1)')
+
+    parser.add_argument('--mloss_coeff', type=float, default=1.0,
+                        help='Coefficient for MoDeLoss loss term (default: 1.0)')
+
+    parser.add_argument('--mloss_bg_only', type=bool, default=True,
+                        help='Whether to expect background only for MoDeLoss (default: True)')
+
+    parser.add_argument('--mloss_bg_label', type=int, default=0,
+                        help='Label to expect for background for MoDeLoss (default: 0)')
+
+    parser.add_argument('--mloss_bins', type=int, default=32,
+                        help='Bins in mass variable for MoDeLoss (default: 32)')
+
     args = parser.parse_args()
 
     # Set up and seed devices
@@ -106,7 +129,7 @@ def main():
         torch.cuda.manual_seed_all(0)
 
     # Setup data and model
-    train_dataloader, val_dataloader, nclasses, nfeatures, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+    train_dataloader, val_dataloader, eval_loader, nclasses, nfeatures, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
                                                     split=args.split, max_events=args.max_events, indices=args.indices,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
@@ -132,13 +155,15 @@ def main():
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.step, gamma=args.gamma, verbose=args.verbose)
     criterion = nn.CrossEntropyLoss()
 
+    modeloss = MoDeLoss(order=args.order,power=args.power,bins=args.mloss_bins,background_only=(args.mloss_bg_only==1),background_label=args.mloss_bg_label) if args.order>=0 and args.power>=0 else None #NOTE: background_only=False is set (not default) since you can end up with no background events in the training batch....maybe should fix this somehow maybe using different train loaders for each class and just combining after.... 
+
     # Setup log directory
     try: os.mkdir(args.log)
     except FileExistsError: print('Directory:',args.log,'already exists!')
 
     # Train model
-    train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose)
-    # evaluate(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split, max_events=args.max_events, log_dir=args.log, verbose=args.verbose)
+    train(args, model, device, train_dataloader, val_dataloader, optimizer, scheduler, criterion, args.epochs, dataset=args.dataset, prefix=args.prefix, log_dir=args.log, verbose=args.verbose, modeloss=modeloss, mloss_coeff=args.mloss_coeff)
+    evaluate(model, device, dataset=args.dataset, prefix=args.prefix, split=args.split, max_events=args.max_events, log_dir=args.log, verbose=args.verbose)
     if args.verbose: plt.show()
 
 if __name__ == '__main__':

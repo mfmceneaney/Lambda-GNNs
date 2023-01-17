@@ -34,16 +34,19 @@ from ignite.contrib.metrics import ROC_AUC, RocCurve
 from ignite.contrib.handlers.tensorboard_logger import *
 from ignite.handlers import global_step_from_engine, EarlyStopping
 
-# Optuna imports
+# Optuna Imports
 import optuna
 from optuna.samplers import TPESampler
 
-# Fitting imports
+# Fitting Imports
 import scipy.optimize as opt
 from scipy.stats import crystalball
 
+# MoDe Loss Imports
+from modeloss.pytorch import MoDeLoss
+
 # Utility Imports
-import datetime, os, itertools
+import datetime, os, itertools, json
 
 # Local Imports
 from models import GIN, HeteroGIN, Classifier, Discriminator, MLP, Concatenate, MLP_SIGMOID
@@ -248,7 +251,8 @@ def train(
     log_interval=10,
     log_dir="logs/",
     save_path="model",
-    verbose=True
+    verbose=True,
+    **kwargs
     ):
 
     """
@@ -275,6 +279,7 @@ def train(
         Default : "model"
     verbose : bool, optional
         Default : True
+    **kwargs
 
     Returns
     -------
@@ -302,8 +307,29 @@ def train(
     # Show model if requested
     if verbose: print(model)
 
+    figsize=(16,10)
+    plt.rc('font', size=15) #controls default text size
+    plt.rc('axes', titlesize=25) #fontsize of the title
+    plt.rc('axes', labelsize=25) #fontsize of the x and y labels
+    plt.rc('xtick', labelsize=20) #fontsize of the x tick labels
+    plt.rc('ytick', labelsize=20) #fontsize of the y tick labels
+    plt.rc('legend', fontsize=15) #fontsize of the legend
+
     # Logs for matplotlib plots
     logs={'train':{'loss':[],'accuracy':[],'roc_auc':[]}, 'val':{'loss':[],'accuracy':[],'roc_auc':[]}}
+
+    use_modeloss=False #NOTE: ADDED 12/30/22
+    mloss_coeff = 1.0
+    modeloss = None
+    if 'modeloss' in kwargs.keys() and kwargs['modeloss'] is not None:
+        use_modeloss=True
+        modeloss = kwargs['modeloss']
+        
+    if 'mloss_coeff' in kwargs.keys() and kwargs['mloss_coeff'] is not None:
+        mloss_coeff = kwargs['mloss_coeff']
+
+    my_mean = 1.08
+    my_sig  = (1.24-1.08)/2 #NOTE: ADDED 1/9/23
 
     # Create train function
     def train_step(engine, batch):
@@ -317,9 +343,19 @@ def train(
         x      = x.to(device)
         y      = y.to(device)
         y_pred = model(x)
-        loss   = criterion(y_pred, y)
+        probs_Y = torch.softmax(y_pred, 1)
+        y_pred = probs_Y
+        loss   = criterion(probs_Y, y)
 
-        # Cleanup step
+        m=None #NOTE: DEFAULT NECESSARY FOR USING WITHOUT MODELOSS
+        if use_modeloss: #NOTE: ADDED 12/30/22
+            m = label[:,1].clone().detach().float() #NOTE: This assumes labels is 2D. 
+            m = m.to(device)
+            m -= (my_mean+my_sig)
+            m /= my_sig
+            #NOTE: Check that there are enough background events for the modeloss computation
+            mloss = mloss_coeff*(modeloss(y_pred, y, m) if (len(y)-y.count_nonzero()).item()>1 and len(m[y==modeloss.background_label])>=modeloss.bins else 0.0) 
+            loss = mloss + loss
 
         # Step optimizer
         optimizer.zero_grad()
@@ -335,6 +371,8 @@ def train(
         return {
                 'y_pred': y_pred,
                 'y': y,
+                'm': m,
+                'probs_y': probs_Y,
                 'y_pred_preprocessed': argmax_Y,
                 'loss': loss.detach().item(),
                 'accuracy': acc
@@ -354,7 +392,19 @@ def train(
             x      = x.to(device)
             y      = y.to(device)
             y_pred = model(x)
-            loss   = criterion(y_pred, y)
+            probs_Y = torch.softmax(y_pred, 1)
+            y_pred = probs_Y
+            loss   = criterion(probs_Y, y)
+            
+            m=None #NOTE: DEFAULT NECESSARY FOR USING WITHOUT MODELOSS
+            if use_modeloss:
+                m = label[:,1].clone().detach().float() #NOTE: This assumes labels is 2D.
+                m = m.to(device)
+                m -= (my_mean+my_sig)
+                m /= my_sig
+                #NOTE: Check that there are enough background events for the modeloss computation. 
+                mloss = mloss_coeff*(modeloss(y_pred, y, m) if (len(y)-y.count_nonzero()).item()>1 and len(m[y==modeloss.background_label])>=modeloss.bins else 0.0) 
+                loss = mloss + loss
 
             #------------ NOTE: NO BACKPROPAGATION FOR VALIDATION ----------#
             # # Step optimizer
@@ -372,6 +422,8 @@ def train(
         return {
                 'y_pred': y_pred,
                 'y': y,
+                'm': m,
+                'probs_y': probs_Y,
                 'y_pred_preprocessed': argmax_Y,
                 'loss': loss.detach().item(),
                 'accuracy': acc
@@ -384,6 +436,10 @@ def train(
     accuracy  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     accuracy.attach(trainer, 'accuracy')
     loss      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
+    if use_modeloss:
+        def myhelper_func(y_pred,y__,m__):
+            return mloss_coeff*(modeloss(y_pred,y__,m__) if (len(y__)-y__.count_nonzero()).item()>1 and len(m__[y__==modeloss.background_label])>=modeloss.bins else 0.0)
+        loss = Loss(lambda y_pred, y : myhelper_func(y_pred,y['y'],y['m'])+criterion(y_pred,y['y']), output_transform=lambda x: [x['y_pred'], {'y':x['y'], 'm':x['m']}])#NOTE: ADDED 12/30/22
     loss.attach(trainer, 'loss')
     # roc_auc   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     # roc_auc.attach(trainer,'roc_auc')
@@ -395,13 +451,18 @@ def train(
     accuracy_  = Accuracy(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     accuracy_.attach(evaluator, 'accuracy')
     loss_      = Loss(criterion,output_transform=lambda x: [x['y_pred'], x['y']])
+    if use_modeloss:
+        def myhelper_func_(y_pred,y__,m__):
+            return mloss_coeff*(modeloss(y_pred,y__,m__) if (len(y__)-y__.count_nonzero()).item()>1 and len(m__[y__==modeloss.background_label])>=modeloss.bins else 0.0)
+        loss_ = Loss(lambda y_pred, y : myhelper_func_(y_pred,y['y'],y['m'])+criterion(y_pred,y['y']), output_transform=lambda x: [x['y_pred'], {'y':x['y'], 'm':x['m']}])#NOTE: ADDED 12/30/22 
     loss_.attach(evaluator, 'loss')
     # roc_auc_   = ROC_AUC(output_transform=lambda x: [x['y_pred_preprocessed'], x['y']])
     # roc_auc_.attach(evaluator,'roc_auc')
-
+    
     # Set up early stopping
     def score_function(engine):
-        val_loss = engine.state.metrics['loss']
+        val_loss = engine.state.metrics['loss']#DEBUGGING: COMMENTED OUT 1/9/23
+        #val_loss = engine.state.output['loss']
         return -val_loss
 
     handler = EarlyStopping(
@@ -442,6 +503,7 @@ def train(
         for metric in metrics.keys(): logs['val'][metric].append(metrics[metric])
         if verbose: print(f"Validation Results - Epoch: {trainer.state.epoch}  Avg loss: {metrics['loss']:.4f} Avg accuracy: {metrics['accuracy']:.4f}")
 
+    """
     # Create a TensorBoard logger
     tb_logger = TensorboardLogger(log_dir=log_dir)
 
@@ -478,16 +540,17 @@ def train(
         optimizer=optimizer,
         param_name='lr'  # optional
     )
+    """
 
     # Run training loop
     trainer.run(train_loader, max_epochs=max_epochs)
-    tb_logger.close() #IMPORTANT!
+    ####tb_logger.close() #IMPORTANT! #NOTE: DEBUGGING COMMENTED OUT 1/9/23
     if save_path!="":
         torch.save(model.to('cpu').state_dict(), os.path.join(log_dir,save_path+"_weights")) #NOTE: Save to cpu state so you can test more easily.
         # torch.save(model.to('cpu'), os.path.join(log_dir,save_path)) #NOTE: Save to cpu state so you can test more easily.
    
     # Create training/validation loss plot
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.subplot()
     plt.title('Loss per epoch')
     plt.plot(logs['train']['loss'],label="training")
@@ -496,10 +559,10 @@ def train(
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend()
-    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
 
     # Create training/validation accuracy plot
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.subplot()
     plt.title('Accuracy per epoch')
     plt.plot(logs['train']['accuracy'],label="training")
@@ -507,7 +570,12 @@ def train(
     plt.legend(loc='best', frameon=False)
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
-    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+'.png'))
+    plt.ylim(0.0,1.0) #NOTE: ADDED 11/17/22
+    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+
+    # Write logs to json file #NOTE: ADDED 10/24/22
+    with open(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.json'),'w') as fp:
+        json.dump(logs,fp)
 
     return logs
 
@@ -596,6 +664,14 @@ def train_dagnn(
     # Show model if requested
     if verbose: print(model)
 
+    figsize=(16,10)
+    plt.rc('font', size=15) #controls default text size
+    plt.rc('axes', titlesize=25) #fontsize of the title
+    plt.rc('axes', labelsize=25) #fontsize of the x and y labels
+    plt.rc('xtick', labelsize=20) #fontsize of the x tick labels
+    plt.rc('ytick', labelsize=20) #fontsize of the y tick labels
+    plt.rc('legend', fontsize=15) #fontsize of the legend 
+
     # Logs for matplotlib plots
     logs={'train':{'train_loss':[],'train_accuracy':[],'train_roc_auc':[],'dom_loss':[],'dom_accuracy':[],'dom_roc_auc':[]},
             'val':{'train_loss':[],'train_accuracy':[],'train_roc_auc':[],'dom_loss':[],'dom_accuracy':[],'dom_roc_auc':[]}}
@@ -682,8 +758,8 @@ def train_dagnn(
 
         # Apply softmax and get accuracy on domain data
         dom_true_y = dom_labels.clone().detach().float().view(-1, 1)
-        # dom_probs_y = torch.softmax(dom_y, 1) #NOTE: Activation should already be a part of the discriminator
-        dom_argmax_y = torch.max(dom_y, 1)[1].view(-1, 1) #TODO: Could set limit for classification? something like np.where(arg_max_Y>limit)
+        dom_probs_y = torch.softmax(dom_y, 1) #NOTE: Activation should already be a part of the discriminator #NOTE CHANGED BACK TO ACTUALLY USE THIS STEP 11/17/22
+        dom_argmax_y = torch.max(dom_probs_y, 1)[1].view(-1, 1) #TODO: Could set limit for classification? something like np.where(arg_max_Y>limit)
         dom_acc = (dom_true_y == dom_argmax_y.float()).sum().item() / len(dom_true_y)
 
         return {
@@ -788,8 +864,8 @@ def train_dagnn(
 
             # Apply softmax and get accuracy on domain data
             dom_true_y = dom_labels.clone().detach().float().view(-1, 1)
-            # dom_probs_y = torch.softmax(dom_y, 1) #NOTE: Activation should already be a part of the discriminator
-            dom_argmax_y = torch.max(dom_y, 1)[1].view(-1, 1) #TODO: Could set limit for classification? something like np.where(arg_max_Y>limit)
+            dom_probs_y = torch.softmax(dom_y, 1) #NOTE: Activation should already be a part of the discriminator #NOTE: CHANGED 10/24/22 added this step back in and now using dom_probs_y below ... not sure if this will work
+            dom_argmax_y = torch.max(dom_probs_y, 1)[1].view(-1, 1) #TODO: Could set limit for classification? something like np.where(arg_max_Y>limit)
             dom_acc = (dom_true_y == dom_argmax_y.float()).sum().item() / len(dom_true_y)
 
         return {
@@ -945,7 +1021,7 @@ def train_dagnn(
         # torch.save(discriminator.to('cpu'), os.path.join(log_dir,save_path+'_discriminator'))
 
     # Create training/validation loss plot
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.subplot()
     plt.title('Loss per epoch')
     plt.plot(logs['train']['train_loss'],'-',color='orange',label="classifier training")
@@ -956,10 +1032,10 @@ def train_dagnn(
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend()
-    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
 
     # Create training/validation accuracy plot
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.subplot()
     plt.title('Accuracy per epoch')
     plt.plot(logs['train']['train_accuracy'],'-',color='blue',label="classifier training")
@@ -969,28 +1045,30 @@ def train_dagnn(
     plt.legend(loc='best', frameon=False)
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
-    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+'.png'))
+    plt.ylim(0.0,1.0)#NOTE ADDED 11/17/22
+    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.png'))
+
+    # Write logs to json file #NOTE: ADDED 10/24/22
+    with open(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+"_"+dataset+"_nEps"+str(max_epochs)+'.json'),'w') as fp:
+        json.dump(logs,fp)
 
     return logs
     
-def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max_events=1e20 , log_dir="logs/",verbose=True):
+def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max_events=1e20 , log_dir="logs/",verbose=True, roc_cut=None, model1=None, use_umap=True):
     #TODO: Update args defaults for split and max_events!
 
     #TODO: Make these options...
-    plt.rc('font', size=20) #controls default text size                                                                                                                     
+    plt.rc('font', size=15) #controls default text size                                                                                                                     
     plt.rc('axes', titlesize=25) #fontsize of the title                                                                                                                     
     plt.rc('axes', labelsize=25) #fontsize of the x and y labels                                                                                                            
     plt.rc('xtick', labelsize=20) #fontsize of the x tick labels                                                                                                            
     plt.rc('ytick', labelsize=20) #fontsize of the y tick labels                                                                                                            
-    plt.rc('legend', fontsize=20) #fontsize of the legend
+    plt.rc('legend', fontsize=15) #fontsize of the legend
 
-    # plt.rc('font',**{'family':'serif','serif':['Times New Roman']})
-    # plt.rc('text', usetex=True)
-
-    figsize=(16,10)
-
+    figsize = (16,10) #NOTE: ADDED 9/30/22
+    
     # Load validation data
-    test_dataset = GraphDataset(prefix+dataset) if eval_loader is None else eval_loader.dataset # Make sure this is copied into ~/.dgl folder
+    test_dataset = GraphDataset(prefix+dataset) if eval_loader is None else eval_loader.dataloader.dataset # Make sure this is copied into ~/.dgl folder
     if eval_loader is None:
         test_dataset.load()
         test_dataset = Subset(test_dataset,range(int(min(len(test_dataset),max_events)*split)))
@@ -1004,18 +1082,69 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     test_Y     = test_Y.to(device)
 
     print("DEBUGGING: test_Y.device = ",test_Y.device)#DEBUGGING
+    #----- ADDED -----#
+    print("DEBUGGING: test_bg.device = ",test_bg.device)#DEBUGGING
+    #print("DEBUGGING: model.models = ",model.models)#DEBUGGING
+    try:
+        print("DEBUGGING: model.models = ",model.models)#DEBUGGING
+    except Exception:
+        print("DEBUGGING: could not access attribute model.models")#DEBUGGING
+    try:
+        print("DEBUGGING: model.models[0].device = ",model.models[0].device)#DEBUGGING
+    except Exception:
+        print("DEBUGGING: could not access attribute model.models[0].device")#DEBUGGING
+    try:
+        model.models = [model.models[idx].to(device) for idx in range(len(model.models))]#DEBUGGING
+    except Exception:
+        print("DEBUGGING: model.models = [model.models[idx].to(device) for idx in range(len(model.models))]")#DEBUGGING
+    #----- ADDED END -----#  
 
     prediction = model(test_bg)
     probs_Y    = torch.softmax(prediction, 1)
-    argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
+    argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1) if roc_cut is None else torch.tensor([1 if el>roc_cut else 0 for el in probs_Y[:,1]],dtype=torch.long) #NOTE: ADDED 10/25/22
     test_acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
     if verbose: print('Accuracy of predictions on the test set: {:4f}%'.format(
         (test_Y == argmax_Y.float()).sum().item() / len(test_Y) * 100))
+    
+    """
+    #try: #DEBUGGING #ADDED 11/29/22
+    import umap
+    import seaborn as sns
+    reducer = umap.UMAP()
+    extractor = model.models[0]
+    latent_repr = extractor(test_bg).detach()
+    print("DEBUGGING: type(latent_repr) = ",type(latent_repr))#DEBUGGING
+    print("DEBUGGING: latent_repr = ",latent_repr)#DEBUGGING
+    embedding = reducer.fit_transform(latent_repr)
+    print("DEBUGGING: type(embedding) = ",type(embedding))#DEBUGGING
+    print("DEBUGGING: embedding.shape = ",embedding.shape)#DEBUGGING
+    f = plt.figure((16,10))
+    plt.scatter(embedding[:,0],embedding[:,1])
+    plt.title('UMAP projection of the DAGIN latent space presentation')
+    f.savefig(os.path.join(log_dir,'umap_basic.png'))
+
+    # Plot separated into true/false sig/bg
+    
+    #except Exception:
+    #    print("COULD NOT IMPORT UMAP OR ACCESS MODEL EXTRACTOR ELEMENT...")#DEBUGGING ADDED 11/29/22
+    """
+
+    #NOTE: ADDED 11/10/22
+    if model1 is not None:
+        model1.eval()
+        model1      = model1.to(device)
+        test_bg1    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop])#TODO: Figure out nicer way to use subset
+        test_bg1    = test_bg1.to(device)
+        prediction1 = model1(test_bg1)
+        probs_Y1    = torch.softmax(prediction1, 1)
+        argmax_Y1   = torch.max(probs_Y1, 1)[1].view(-1, 1) if roc_cut is None else torch.tensor([1 if el>roc_cut else 0 for el in probs_Y[:,1]],dtype=torch.long) #NOTE: ADDED 10/25/22
+        argmax_Y    = torch.min(argmax_Y,argmax_Y1) if roc_cut is None else torch.tensor([1 if el>roc_cut and probs_Y1[:,1][idx]>roc_cut else 0 for idx, el in enumerate(probs_Y[:,1])],dtype=torch.long)
 
     # Copy arrays back to CPU
     test_Y   = test_Y.cpu()
     probs_Y  = probs_Y.cpu()
     argmax_Y = argmax_Y.cpu()
+    prediction = prediction.cpu()#NOTE: ADDED 12/30/22
 
     # Get separated mass distributions
     mass_sig_Y    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 1)) #if eval_loader is None else ma.array(test_dataset.labels[:,0].clone().detach().float().view(-1,1),mask=~(argmax_Y == 1)) 
@@ -1035,17 +1164,147 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     mass_sig_MC   = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0] == 1))
     mass_bg_MC    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0] == 0))
 
-    ##################################################
-    # Define fit function
-    def func(x, N, beta, m, loc, scale, A, B, C):
-        return N*crystalball.pdf(-x, beta, m, -loc, scale) + A*(1 - B*(x - C)**2)
-        
-    def sig(x, N, beta, m, loc, scale):
-        return N*crystalball.pdf(-x, beta, m, -loc, scale)
-        
-    def bg(x, A, B, C):
-        return A*(1 - B*(x - C)**2)
-    ##################################################
+    np.save(log_dir+'mass_sig_Y_mask.npy',mass_sig_Y.mask)#NOTE: ADDED 12/1/22
+    np.save(log_dir+'mass_bg_Y_mask.npy',mass_bg_Y.mask)#NOTE: ADDED 12/1/22
+    np.save(log_dir+'mass_sig_true_mask.npy',mass_sig_true.mask)#NOTE: ADDED 12/1/22
+    np.save(log_dir+'mass_bg_true_mask.npy',mass_bg_true.mask)#NOTE: ADDED 12/1/22
+    np.save(log_dir+'mass_sig_false_mask.npy',mass_sig_false.mask)#NOTE: ADDED 12/1/22
+    np.save(log_dir+'mass_bg_false_mask.npy',mass_bg_false.mask)#NOTE: ADDED 12/1/22
+    np.save(log_dir+'mass_sig_MC_mask.npy',mass_sig_MC.mask)#NOTE: ADDED 12/1/22
+    np.save(log_dir+'mass_bg_MC_mask.npy',mass_bg_MC.mask)#NOTE: ADDED 12/1/22
+
+    #try: #DEBUGGING #ADDED 11/29/22
+    import umap
+    import seaborn as sns
+    from sklearn.manifold import TSNE
+    reducer = umap.UMAP() if use_umap else TSNE(2)
+    extractor = None
+    latent_repr = None
+    try:
+        extractor = model.models[0]
+        latent_repr = extractor.get_latent_repr(test_bg).detach().cpu()#NOTE: ADDED .cpu() 12/30/22
+        print("DEBUGGING: type(latent_repr) = ",type(latent_repr[0]))#DEBUGGING
+        print("DEBUGGING: latent_repr[0] = ",latent_repr[0])#DEBUGGING
+        print("DEBUGGING: len(latent_repr) = ",len(latent_repr))#DEBUGGING
+    except AttributeError as ae:
+        print("AttributeError: could not access model.models")#DEBUGGING
+        print(ae)
+        extractor = model
+        latent_repr = extractor.get_latent_repr(test_bg).detach().cpu()#NOTE: ADDED .cpu() 12/30/22 
+        print("DEBUGGING: type(latent_repr) = ",type(latent_repr[0]))#DEBUGGING
+        print("DEBUGGING: latent_repr[0] = ",latent_repr[0])#DEBUGGING
+        print("DEBUGGING: len(latent_repr) = ",len(latent_repr))#DEBUGGING
+    print("DEBUGGING: type(latent_repr) = ",type(latent_repr))#DEBUGGING
+    print("DEBUGGING: latent_repr = ",latent_repr)#DEBUGGING
+    embedding = reducer.fit_transform(latent_repr)
+    print("DEBUGGING: type(embedding) = ",type(embedding))#DEBUGGING
+    print("DEBUGGING: embedding.shape = ",embedding.shape)#DEBUGGING 
+
+    visualization_method = 'umap' if use_umap else 'tsne'
+
+    np.save(log_dir+'latent_repr.npy',np.array(latent_repr))#DEBUGGING: NOTE ADDED 11/30/22
+    np.save(log_dir+visualization_method+'_embedding.npy',np.array(embedding))#DEBUGGING: NOTE ADDED 11/30/22
+
+    f = plt.figure(figsize=figsize)
+    plt.scatter(embedding[:,0],embedding[:,1])
+    plt.title(visualization_method+' projection of latent space representation')
+    f.savefig(os.path.join(log_dir,visualization_method+'_basic.png'))
+    # Plot separated into true/false sig/bg
+
+    em_sig = ma.array(embedding,mask=[[el,el] for el in mass_sig_Y.mask])
+    em_bg = ma.array(embedding,mask=[[el,el] for el in mass_bg_Y.mask])
+
+    em_sig_true = ma.array(embedding,mask=[[el,el] for el in mass_sig_true.mask])
+    em_bg_true = ma.array(embedding,mask=[[el,el] for el in mass_bg_true.mask])
+    em_sig_false = ma.array(embedding,mask=[[el,el] for el in mass_sig_false.mask])
+    em_bg_false = ma.array(embedding,mask=[[el,el] for el in mass_bg_false.mask])
+
+    em_sig_MC = ma.array(embedding,mask=[[el,el] for el in mass_sig_MC.mask])
+    em_bg_MC = ma.array(embedding,mask=[[el,el] for el in mass_bg_MC.mask])
+
+    # Set plotting options
+    alpha = 0.5
+    mew   = 0.0
+
+    # Plot visualization method decisions separated into signal/background
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title('Separated '+visualization_method+' distribution')
+    ax.scatter(em_sig[:,0][~em_sig.mask[:,0]],em_sig[:,1][~em_sig.mask[:,1]], alpha=alpha, linewidths=mew, label='sig')
+    ax.scatter(em_bg[:,0][~em_bg.mask[:,0]],em_bg[:,1][~em_bg.mask[:,1]], alpha=alpha, linewidths=mew, label='bg')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_nn_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    # Plot visualization method decisions just signal
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title(visualization_method+' sig distribution')
+    ax.scatter(em_sig[:,0][~em_sig.mask[:,0]],em_sig[:,1][~em_sig.mask[:,1]], color="tab:blue", alpha=alpha, linewidths=mew, label='sig')
+    #ax.scatter(em_bg[:,0][~em_bg.mask[:,0]],em_bg[:,1][~em_bg.mask[:,1]], alpha=alpha, linewidths=mew, label='bg')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_nn_sig_only_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    # Plot visualization method decisions just background
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title(visualization_method+' bg distribution')
+    #ax.scatter(em_sig[:,0][~em_sig.mask[:,0]],em_sig[:,1][~em_sig.mask[:,1]], alpha=alpha, linewidths=mew, label='sig')
+    ax.scatter(em_bg[:,0][~em_bg.mask[:,0]],em_bg[:,1][~em_bg.mask[:,1]], color="tab:orange", alpha=alpha, linewidths=mew, label='bg')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_nn_bg_only_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    # Plot correct visualization method decisions separated into signal/background
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title('Separated '+visualization_method+' distribution (true)')
+    ax.scatter(em_sig_true[:,0][~em_sig_true.mask[:,0]],em_sig_true[:,1][~em_sig_true.mask[:,1]], alpha=alpha, linewidths=mew, label='sig')
+    ax.scatter(em_bg_true[:,0][~em_bg_true.mask[:,0]],em_bg_true[:,1][~em_bg_true.mask[:,1]], alpha=alpha, linewidths=mew, label='bg')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_mc_matched_nn_true_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    # Plot incorrect visualization method decisions separated into signal/background
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title('Separated '+visualization_method+' distribution (false)')
+    ax.scatter(em_sig_false[:,0][~em_sig_false.mask[:,0]],em_sig_false[:,1][~em_sig_false.mask[:,1]], alpha=alpha, linewidths=mew, label='sig')
+    ax.scatter(em_bg_false[:,0][~em_bg_false.mask[:,0]],em_bg_false[:,1][~em_bg_false.mask[:,1]], alpha=alpha, linewidths=mew, label='bg')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_mc_matched_nn_false_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    # Plot MC-Matched visualization method distributions
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title('Separated'+visualization_method+' distribution MC-matched')
+    ax.scatter(em_sig_MC[:,0][~em_sig_MC.mask[:,0]],em_sig_MC[:,1][~em_sig_MC.mask[:,1]], alpha=alpha, linewidths=mew, label='sig')
+    ax.scatter(em_bg_MC[:,0][~em_bg_MC.mask[:,0]],em_bg_MC[:,1][~em_bg_MC.mask[:,1]], alpha=alpha, linewidths=mew, label='bg')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_mc_matched_nn_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    # Plot MC-Matched visualization method distributions for NN-identified signal
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title('NN-identified signal '+visualization_method+' distribution MC-matched')
+    ax.scatter(em_sig_true[:,0][~em_sig_true.mask[:,0]],em_sig_true[:,1][~em_sig_true.mask[:,1]], alpha=alpha, linewidths=mew, label='true')
+    ax.scatter(em_sig_false[:,0][~em_sig_false.mask[:,0]],em_sig_false[:,1][~em_sig_false.mask[:,1]], alpha=alpha, linewidths=mew, label='false')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_mc_matched_nn_sig_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    # Plot MC-Matched visualization method distributions for NN-identified background
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title('NN-identified bg '+visualization_method+' distribution MC-matched')
+    ax.scatter(em_bg_true[:,0][~em_bg_true.mask[:,0]],em_bg_true[:,1][~em_bg_true.mask[:,1]], alpha=alpha, linewidths=mew, label='true')
+    ax.scatter(em_bg_false[:,0][~em_bg_false.mask[:,0]],em_bg_false[:,1][~em_bg_false.mask[:,1]], alpha=alpha, linewidths=mew, label='false')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_mc_matched_nn_bg_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    #except Exception:
+    #    print("COULD NOT IMPORT UMAP OR ACCESS MODEL EXTRACTOR ELEMENT...")#DEBUGGING ADDED 11/29/22
+
+    
+    ###################################################
+    ## Define fit function
+    #def func(x, N, beta, m, loc, scale, A, B, C):
+    #    return N*crystalball.pdf(-x, beta, m, -loc, scale) + A*(1 - B*(x - C)**2)
+    #    
+    #def sig(x, N, beta, m, loc, scale):
+    #    return N*crystalball.pdf(-x, beta, m, -loc, scale)
+    #    
+    #def bg(x, A, B, C):
+    #    return A*(1 - B*(x - C)**2)
+    ###################################################
 
     # # Set font sizes
     # plt.rc('axes', titlesize=30)
@@ -1060,47 +1319,76 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     # Plot mass decisions separated into signal/background
     bins = 100
     low_high = (1.08,1.24)#(1.1,1.13)
-    f = plt.figure(figsize=figsize)
+    f = plt.figure(figsize=(16,10))
     plt.title('Separated mass distribution')
     hdata = plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
     
     # Fit output of NN
     print("DEBUGGING: hdata[0] = ",hdata[0])#DEBUGGING
-    N, beta, m, loc, scale, A, B, C = 500, 1, 1.112, 1.115, 0.008, hdata[0][-1], 37, 1.24 #OLD: A = hdata[0][-1] #DEBUGGING COMMENTED OUT!
+    N, beta, m, loc, scale, A, B, C = 10, 1, 1.112, 1.115, 0.008, np.max(hdata[0][-10:-1]), 37, 1.24 #OLD: A = hdata[0][-1] #DEBUGGING COMMENTED OUT!
     if A == 0: A = 0.1 #DEBUGGING
-    d_N, d_beta, d_m, d_loc, d_scale, d_A, d_B, d_C = N/0.01, beta/0.1, m/0.1, loc/0.1, scale/0.01, A/10, B/0.1, C/0.1
-    parsMin = [N-d_N, beta-d_beta, m-d_m, loc-d_loc, scale-d_scale, A-d_A, B-d_B, C-d_C]
-    parsMax = [N+d_N, beta+d_beta, m+d_m, loc+d_loc, scale+d_scale, A+d_A, B+d_B, C+d_C]
+    d_N, d_beta, d_m, d_loc, d_scale, d_A, d_B, d_C = N/0.01, beta/0.1, m/0.1, loc/0.1, scale/0.01, A/10, B/0.1, C/1
+    parsMin = [N-d_N, beta-d_beta, m-d_m, loc-d_loc, scale-d_scale, B-d_B]#[N-d_N, beta-d_beta, m-d_m, loc-d_loc, scale-d_scale, A-d_A, B-d_B, C-d_C] #NOTE: CHANGED 10/21/22
+    parsMax = [N+d_N, beta+d_beta, m+d_m, loc+d_loc, scale+d_scale, B+d_B]#[N+d_N, beta+d_beta, m+d_m, loc+d_loc, scale+d_scale, A+d_A, B+d_B, C+d_C]#NOTE: CHANGED 10/21/22
     print("DEBUGGING: parsMin = ",parsMin)#DEBUGGING
     print("DEBUGGING: parsMax = ",parsMax)#DEBUGGING
+
+    ################################################# #NOTE: UPDATED FUNCTION DEFINITIONS 10/21/22
+    # Define fit function
+    def func(x, N, beta, m, loc, scale, B, A = A, C=C):
+        return N*crystalball.pdf(-x, beta, m, -loc, scale) + A*(1 - B*(x - C)**2)
+
+    def sig(x, N, beta, m, loc, scale):
+        return N*crystalball.pdf(-x, beta, m, -loc, scale)
+
+    def bg(x, B, A=A, C=C):
+        return A*(1 - B*(x - C)**2)
+    ##################################################
+    
     optParams, pcov = opt.curve_fit(func, hdata[1][:-1], hdata[0], method='trf', bounds=(parsMin,parsMax))
+
+    print("DEBUGGING: np.shape(pcov) = ",np.shape(pcov))#DEBUGGING 9/27/22
+
+    np.save(log_dir+'mass_sig_Y.npy',np.array(mass_sig_Y))
+    np.save(log_dir+'mass_bg_Y.npy',np.array(mass_bg_Y))#NOTE: ADDED 10/21/22 #NOTE: ADDED 12/1/22 Removed mask index here and above.
 
     # Plot fit
     x = np.linspace(low_high[0],low_high[1],bins)#mass_sig_Y[~mass_sig_Y.mask]
     y = hdata[0]
     plt.plot(x, func(x, *optParams), color='r')
     plt.plot(x, sig(x, *optParams[0:5]), color='tab:purple')
-    plt.plot(x, bg(x, *optParams[5:]), color='b')
-    plt.hist(x, weights=y-bg(x, *optParams[5:]), bins=bins, range=low_high, histtype='step', alpha=0.5, color='b')
+    plt.plot(x, bg(x, *optParams[5:]), color='b') #NOTE: CHANGED 10/21/22 optParams[5:] -> optParams[-1] 
+    plt.hist(x, weights=y-bg(x, *optParams[5:]), bins=bins, range=low_high, histtype='step', alpha=0.5, color='b') #NOTE: CHANGED 10/21/22 optParams[5:] -> optParams[-1]
 
+    #NOTE ADDED CHI2 CALCULATION 11/17/22
+    r = np.divide(y - func(x, *optParams),np.sqrt([el if el>0 else 1 for el in func(x, *optParams)])) #NOTE: TAKE A LOOK AT https://root.cern.ch/doc/master/classRooChi2Var.html
+    print("DEBUGGING: r = ",r)#DEBUGGING
+    chi2 = np.sum(np.square(r))
+    print("DEBUGGING: chi2 = ",chi2)#DEBUGGING
+    ndf = len(y) - len(optParams)
+    print("DEBUGGING: ndf = ",len(y)," - ",len(optParams)," = ",ndf)#DEBUGGING
+    chi2ndf = chi2/ndf
+    print("DEBUGGING: chi2/ndf = ",chi2ndf)#DEBUGGING
+    
     # Setup legend entries for fit info
     lg = "Fit Info\n-------------------------\n"
-    lg += f"N = {round(optParams[0],0)}±{round(pcov[0,0],4)}\n"
+    #lg += f"N = {round(optParams[0],0)}±{round(pcov[0,0],4)}\n"
     lg += f"α = {round(optParams[1],3)}±{round(pcov[1,1],7)}\n"
     lg += f"n = {round(optParams[2],3)}±{round(pcov[2,2],2)}\n"
     lg += f"μ = {round(optParams[3],5)}±{round(pcov[3,3],10)}\n"
     lg += f"σ = {round(optParams[4],5)}±{round(pcov[4,4],10)}\n"
-    lg += f"A = {round(optParams[5],0)}±{round(pcov[5,5],2)}\n"
-    lg += f"β = {round(optParams[6],0)}±{round(pcov[6,6],2)}\n"
-    lg += f"M = {round(optParams[7],2)}±{round(pcov[7,7],7)}\n"
-    plt.text(low_high[1]-(low_high[1]-low_high[0])/3,1/2*max(hdata[0]),lg,fontsize=20,linespacing=1.25) #NOTE: MAKE THESE PARAMS OPTIONS
-
+    lg += f"$\chi^{2}$ = {round(chi2ndf,5)}\n"
+    #lg += f"A = {round(optParams[5],0)}±{round(pcov[5,5],2)}\n"
+    #lg += f"β = {round(optParams[6],0)}±{round(pcov[6,6],2)}\n"
+    #lg += f"M = {round(optParams[7],2)}±{round(pcov[7,7],7)}\n"
+    plt.text(low_high[1]-(low_high[1]-low_high[0])/3,0.5*max(hdata[0]),lg,fontsize=20,linespacing=1.25)
+    
     # Show the graph
-    # plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background') #NOTE: COMMENTED OUT FOR DEBUGGING
+    plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
 
     # Plot mass decisions separated into signal/background
     bins = 100
@@ -1112,7 +1400,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'test_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'test_metrics_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
 
     # Plot correct mass decisions separated into signal/background
     bins = 100
@@ -1124,7 +1412,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'test_metrics_mass_true_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'test_metrics_mass_true_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
 
     # Plot incorrect mass decisions separated into signal/background
     bins = 100
@@ -1136,7 +1424,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'test_metrics_mass_false_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'test_metrics_mass_false_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
 
     # Plot MC-Matched distributions
     bins = 100
@@ -1148,7 +1436,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'mc_matched_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'mc_matched_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
 
     # Plot MC-Matched distributions for NN-identified signal
     bins = 100
@@ -1160,7 +1448,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'mc_matched_nn_sig_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'mc_matched_nn_sig_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
 
     # Plot MC-Matched distributions for NN-identified background
     bins = 100
@@ -1172,269 +1460,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
-
-    #-----#
-    #NOTE: ADDED DEBUGGING
-
-    # pid, fraction =  2 5 %
-    # pid, fraction =  3 0 %
-    # pid, fraction =  91 1 %
-    # pid, fraction =  92 74 %
-    # pid, fraction =  2212 0 %
-    # pid, fraction =  3114 1 %
-    # pid, fraction =  3212 8 %
-    # pid, fraction =  3214 3 %
-    # pid, fraction =  3224 3 %
-
-    unique_ppa_pids = np.unique(
-                        test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float(),
-                        return_counts=True #NOTE: IMPORTANT!
-                        )
-    available_labels = unique_ppa_pids[0]
-    counts_labels    = unique_ppa_pids[1]
-    print("DEBUGGING: LABEL COUNTS     = ",[int(el) for el in counts_labels])#DEBUGGING
-    print("DEBUGGING: AVAILABLE LABELS = ",[int(el) for el in available_labels])#DEBUGGING
-
-    labels, counts = available_labels, counts_labels
-    labels = [int(el) for el in labels]
-    print("labels = ",labels)#DEBUGGING
-    print("counts = ",counts)#DEBUGGING
-    total = np.sum(counts)
-    print("total = ",total)#DEBUGGING
-    bank = {labels[idx]:round(el,4) for idx, el in enumerate(counts/total)}
-    for el in bank.keys():
-        print("pid, fraction = ",el,int(bank[el]*100),"%")
-
-    x_multi_sig_true  = [] #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
-    x_multi_sig_false = []
-    x_multi_bg_true   = []
-    x_multi_bg_false  = []
-    labels_sig_true   = [] #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
-    labels_sig_false  = []
-    labels_bg_true    = [] 
-    labels_bg_false   = []
-
-    name_bank = {
-        1 : "d",
-        2 : "u",
-        3 : "s",
-        91 : "cluster (91)",
-        92 : "string (92)",
-        2212 : "p",
-        3224 : "$\Sigma^{*+}$",
-        3214 : "$\Sigma^{*0}$",
-        3212 : "$\Sigma^{0}$",
-        3114 : "$\Sigma^{*-}$",
-        3312 : "$\Xi^{-}$",
-        3322 : "$\Xi^{0}$"
-    }
-
-    for my_pid__ in bank.keys():
-        fill_option = False
-        if bank[my_pid__]>0.01:
-            fill_option = True
-
-        mass_sig_true_from_target  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
-                                    mask=np.logical_or(
-                                        ~(my_pid__ == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float()),
-                                        np.logical_or(
-                                            ~(torch.squeeze(argmax_Y) == 1),
-                                            ~(torch.squeeze(argmax_Y) == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float())
-                                        )
-                                    )
-                                )
-
-        mass_sig_false_from_target  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
-                                    mask=np.logical_or(
-                                        ~(my_pid__ == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float()),
-                                        np.logical_or(
-                                            ~(torch.squeeze(argmax_Y) == 1),
-                                            ~(torch.squeeze(argmax_Y) != test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float())
-                                        )
-                                    )
-                                )
-
-        # # Plot MC-Matched distributions for NN-identified signal
-        # bins = 100
-        # # low_high = (1.1,1.13)
-        # f = plt.figure(figsize=figsize)
-        # plt.title(f"Lambda Parent PID {my_pid__:.0f} NN-identified signal mass distribution MC-matched")
-        # plt.hist(mass_sig_true_from_target[~mass_sig_true_from_target.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
-        # plt.hist(mass_sig_false_from_target[~mass_sig_false_from_target.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
-        # plt.legend(loc='upper left', frameon=False)
-        # plt.ylabel('Counts')
-        # plt.xlabel('Invariant mass (GeV)')
-        # f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_sig_mass_"+datetime.datetime.now().strftime("%F")+'.png'))
-
-
-        #NOTE: NOW LOOK AT NN-IDENTIFIED BG
-
-        mass_bg_true_from_target  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
-                                    mask=np.logical_or(
-                                        ~(my_pid__ == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float()),
-                                        np.logical_or(
-                                            ~(torch.squeeze(argmax_Y) == 0),
-                                            ~(torch.squeeze(argmax_Y) == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float())
-                                        )
-                                    )
-                                )
-
-        mass_bg_false_from_target  = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),
-                                    mask=np.logical_or(
-                                        ~(my_pid__ == test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,-1].clone().detach().float()),
-                                        np.logical_or(
-                                            ~(torch.squeeze(argmax_Y) == 0),
-                                            ~(torch.squeeze(argmax_Y) != test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float())
-                                        )
-                                    )
-                                )
-
-        # # Plot MC-Matched distributions for NN-identified signal
-        # bins = 100
-        # # low_high = (1.1,1.13)
-        # f = plt.figure(figsize=figsize)
-        # plt.title(f"Proton Parent Parent PID {my_pid__:.0f} NN-identified background mass distribution MC-matched")
-        # plt.hist(mass_bg_true_from_target[~mass_bg_true_from_target.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='true')
-        # plt.hist(mass_bg_false_from_target[~mass_bg_false_from_target.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='false')
-        # plt.legend(loc='upper left', frameon=False)
-        # plt.ylabel('Counts')
-        # plt.xlabel('Invariant mass (GeV)')
-        # f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_bg_mass_"+datetime.datetime.now().strftime("%F")+'.png'))
-
-        if fill_option:
-            x_multi_sig_true.append(mass_sig_true_from_target[~mass_sig_true_from_target.mask]) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
-            x_multi_sig_false.append(mass_sig_false_from_target[~mass_sig_false_from_target.mask])
-            x_multi_bg_true.append(mass_bg_true_from_target[~mass_bg_true_from_target.mask])
-            x_multi_bg_false.append(mass_bg_false_from_target[~mass_bg_false_from_target.mask])
-            labels_sig_true.append(name_bank[my_pid__]) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
-            labels_sig_false.append(name_bank[my_pid__])
-            labels_bg_true.append(name_bank[my_pid__])
-            labels_bg_false.append(name_bank[my_pid__])
-
-    # RESHUFFLE DATASETS TO CONTRIBUTIONS ARE PLOTTED SMALLEST TO LARGEST
-    def reorder_(x,labels):
-
-        idcs_ = {len(x[idx]):idx for idx in range(len(x))} #NOTE: ALL SHOULD HAVE SAME LENGTH???
-        idcs = []
-        print("---------------------------------------------")
-        print("idcs_.keys() = ",idcs_.keys())#DEBUGGING
-        print("np.sort(list(idcs_.keys())) = ",np.sort(list(idcs_.keys())))#DEBUGGING
-        for idx in np.sort(list(idcs_.keys())): #NOTE: SORT BY COUNTS, HERE SMALLEST COUNTS ADDED FIRST
-            idcs.append(idcs_[idx])
-        print("DEBUGGING:AFTER idcs_ = ",idcs_)#DEBUGGING
-        print("DEBUGGING:AFTER idcs = ",idcs)#DEBUGGING
-        x       = [x[idx]       for idx in idcs]
-        labels  = [labels[idx]  for idx in idcs]
-
-        return x, labels
-
-    x_multi_sig_true, labels_sig_true   = reorder_(x_multi_sig_true, labels_sig_true)
-    x_multi_sig_false, labels_sig_false = reorder_(x_multi_sig_false, labels_sig_false)
-    x_multi_bg_true, labels_bg_true     = reorder_(x_multi_bg_true, labels_bg_true )
-    x_multi_bg_false, labels_bg_false   = reorder_(x_multi_bg_false, labels_bg_false)
-
-    # x_multi_sig_true  = [x_multi_sig_true[idx]  for idx in idcs]
-    # x_multi_sig_false = [x_multi_sig_false[idx] for idx in idcs]
-    # x_multi_bg_true   = [x_multi_bg_true[idx]   for idx in idcs]
-    # x_multi_bg_false  = [x_multi_bg_false[idx]  for idx in idcs]
-
-    # labels_sig_true  = [labels_sig_true[idx]  for idx in idcs]
-    # labels_sig_false = [labels_sig_false[idx] for idx in idcs]
-    # labels_bg_true   = [labels_bg_true[idx]   for idx in idcs]
-    # labels_bg_false  = [labels_bg_false[idx]  for idx in idcs]
-
-
-    print("DEBUGGING: labels_sig_true = ",labels_sig_true)#DEBUGGING
-    print("DEBUGGING: labels_sig_false = ",labels_sig_false)#DEBUGGING
-    print("DEBUGGING: labels_bg_true = ",labels_bg_true)#DEBUGGING
-    print("DEBUGGING: labels_bg_false = ",labels_bg_false)#DEBUGGING
-
-    print("DEBUGGING: x_multi_sig_true")#DEBUGGING
-    for el in x_multi_sig_true:
-        print("\tnp.shape(el) = ",np.shape(el))#DEBUGGING
-
-    # PLOT FULL SPECTRUM SIG/BG TRUE/FALSE
-    # Make a multiple-histogram of data-sets with different length.
-    f = plt.figure(figsize=figsize)
-    x_multi_sig = [mass_sig_false[~mass_sig_false.mask],mass_sig_true[~mass_sig_true.mask]]
-    x_multi_bg  = [mass_bg_true[~mass_bg_true.mask], mass_bg_false[~mass_bg_false.mask]]
-    plt.title('NN-Identified Mass Spectrum Proton Parent Parent Decomposition')
-    plt.hist(x_multi_sig, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('sig_false','sig_true')) #NOTE: MAKE SURE THESE MATCH UP!!!
-    plt.hist(x_multi_bg, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('bg_true','bg_false')) #NOTE: ADD BG FIRST SO FALSE SIGNAL IS VISIBLE IN CORRECT COLOR
-
-    plt.legend(loc='upper left', frameon=False)
-    plt.ylabel('Counts')
-    plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_full.png"))
-
-    # SIG BOTH TRUE/FALSE
-    # Make a multiple-histogram of data-sets with different length.
-    f = plt.figure(figsize=figsize)
-    plt.title('NN-Identified Signal Proton Parent Parent Decomposition')
-    plt.hist(x_multi_sig_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=["Sig true "+name for name in labels_sig_true])
-    plt.hist(x_multi_sig_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=["Sig false "+name for name in labels_sig_false])
-    plt.legend(loc='upper left', frameon=False)
-    plt.ylabel('Counts')
-    plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_sig.png"))
-    
-    # BG BOTH TRUE/FALSE
-    # Make a multiple-histogram of data-sets with different length.
-    f = plt.figure(figsize=figsize)
-    plt.title('NN-Identified Background Proton Parent Parent Decomposition')
-    plt.hist(x_multi_bg_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=["Bg true "+name for name in labels_bg_true])
-    plt.hist(x_multi_bg_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=["Bg false "+name for name in labels_bg_false])
-    plt.legend(loc='upper left', frameon=False)
-    plt.ylabel('Counts')
-    plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_bg.png"))
-
-    # JUST SIG TRUE
-    # Make a multiple-histogram of data-sets with different length.
-    f = plt.figure(figsize=figsize)
-    plt.title('NN-Identified True Signal $\Lambda$ Parent Decomposition')
-    plt.hist(x_multi_sig_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_true)
-    # plt.hist(x_multi_sig_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_false)
-    plt.legend(loc='upper left', frameon=False)
-    plt.ylabel('Counts')
-    plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_sig_true.png"))
-
-    # JUST SIG FALSE
-    # Make a multiple-histogram of data-sets with different length.
-    f = plt.figure(figsize=figsize)
-    plt.title('NN-Identified False Signal Proton Parent Parent Decomposition')
-    # plt.hist(x_multi_sig_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_true)
-    plt.hist(x_multi_sig_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_sig_false)
-    plt.legend(loc='upper left', frameon=False)
-    plt.ylabel('Counts')
-    plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_sig_false.png"))
-
-    # JUST BG TRUE
-    # Make a multiple-histogram of data-sets with different length.
-    f = plt.figure(figsize=figsize)
-    plt.title('NN-Identified True Background Proton Parent Parent Decomposition')
-    plt.hist(x_multi_bg_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_true)
-    # plt.hist(x_multi_bg_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_false)
-    plt.legend(loc='upper left', frameon=False)
-    plt.ylabel('Counts')
-    plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_bg_true.png"))
-
-    # JUST BG FALSE
-    # Make a multiple-histogram of data-sets with different length.
-    f = plt.figure(figsize=figsize)
-    plt.title('NN-Identified False Background $\Lambda$ Parent Decomposition')
-    # plt.hist(x_multi_bg_true, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_true)
-    plt.hist(x_multi_bg_false, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=labels_bg_false)
-    plt.legend(loc='upper left', frameon=False)
-    plt.ylabel('Counts')
-    plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_bg_false.png"))
-
-    #-----#
+    f.savefig(os.path.join(log_dir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
 
     print("DEBUGGING: np.unique(test_Y.detach().numpy()) = ",np.unique(test_Y.detach().numpy()))#DEBUGGING
 
@@ -1445,10 +1471,9 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
 
     auc = roc_auc_score(np.squeeze(test_Y.detach().numpy()), probs_Y[:,1].detach().numpy())
     if verbose: print(f'AUC = {auc:.4f}')
-    if verbose: print(f'test_acc = {test_acc:.4f}')#DEBUGGING ADDED
 
     # Create matplotlib plots for ROC curve and testing decisions
-    f = plt.figure(figsize=figsize)
+    f = plt.figure(figsize=(16,10))
 
     # Get some nicer plot settings 
     # plt.rcParams['figure.figsize'] = (4,4)#DEBUGGING
@@ -1468,7 +1493,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
 
     # make legend and show plot
     plt.legend([model.name+f": AUC={auc:.4f} acc={test_acc:.4f}"],loc='lower left', frameon=False)
-    f.savefig(os.path.join(log_dir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+".png"))
+    f.savefig(os.path.join(log_dir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
 
     ##########################################################
     # Plot testing decisions
@@ -1478,11 +1503,93 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     low_high = (low,high)
     f = plt.figure(figsize=figsize)
     plt.clf()
-    plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
-    plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
+    #plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
+    #plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
+    plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', log=True, density=False, label='hist2') #NOTE: log=True added 11/17/22
     plt.xlabel('output')
     plt.ylabel('counts')
-    f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+".png"))
+    plt.xlim(0.0,1.0) #NOTE: ADDED 11/17/22
+    f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
+
+    #---------- ADDED ----------#
+
+    
+
+    ################################################################################
+    # Plot testing decisions                                                                                                                                             
+    bins = 100
+    low = min(np.min(p) for p in probs_Y[:,1].detach().numpy())
+    high = max(np.max(p) for p in probs_Y[:,0].detach().numpy())
+    low_high = (low,high)
+    f = plt.figure(figsize=figsize)
+    plt.clf()
+    #plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
+    #plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
+    separated_mass = [probs_Y[~mass_sig_MC.mask][:,0].detach().numpy(),probs_Y[~mass_bg_MC.mask][:,0].detach().numpy()]
+    np.save(log_dir+'prediction.npy',prediction.detach().numpy())#NOTE: ADDED 12/29/22
+    np.save(log_dir+'probs_Y.npy',probs_Y.detach().numpy())#NOTE: ADDED 12/29/22
+    np.save(log_dir+'separated_probs_sig.npy',separated_mass[0])#NOTE: ADDED 12/29/22
+    np.save(log_dir+'separated_probs_b.npy',separated_mass[1])#NOTE: ADDED 12/29/22
+    plt.hist(separated_mass, range=low_high, bins=bins, alpha=0.5, histtype='stepfilled', log=True, stacked=True, density=False, label=['signal','background']) #NOTE: log=True added 11/17/22
+    plt.xlabel('output')
+    plt.ylabel('counts')
+    plt.xlim(0.0,1.0) #NOTE: ADDED 11/17/22
+    plt.legend()#NOTE: ADDED 12/29/22
+    f.savefig(os.path.join(log_dir,model.name+"_STACKED_test_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
+
+    #################################################################################
+    x_multi_sig = [mass_sig_false[~mass_sig_false.mask],mass_sig_true[~mass_sig_true.mask]]
+    x_multi_bg  = [mass_bg_true[~mass_bg_true.mask], mass_bg_false[~mass_bg_false.mask]]
+    
+    bins = 100
+    low_high = (1.08,1.24)#(1.1,1.13)
+    f = plt.figure(figsize=figsize)
+    plt.title('Invariant mass spectrum')
+    hdata__ = plt.hist(x_multi_sig, bins=bins, range=low_high, alpha=0.5, histtype='stepfilled', stacked=True, density=False, label=('False Sigal','True Signal')) #NOTE: MAKE SURE THESE MATCH UP!!!
+
+    # Plot fit
+    x = np.linspace(low_high[0],low_high[1],bins)#mass_sig_Y[~mass_sig_Y.mask]
+    y = hdata[0]
+    plt.plot(x, func(x, *optParams), color='r')
+    plt.plot(x, sig(x, *optParams[0:5]), color='tab:purple')
+    plt.plot(x, bg(x, *optParams[5:]), color='b') #NOTE: CHANGED 10/21/22 optParams[5:] -> optParams[-1] 
+    #plt.hist(x, weights=y-bg(x, *optParams[5:]), bins=bins, range=low_high, histtype='step', alpha=0.5, color='b') #NOTE: CHANGED 10/21/22 optParams[5:] -> optParams[-1] #NOTE: DEBUGGING COMMENTED OUT 11/4/22
+
+    #r = y - func(x, *optParams)
+    r = np.divide(y - func(x, *optParams),np.sqrt([el if el>0 else 1 for el in func(x, *optParams)])) #NOTE: TAKE A LOOK AT https://root.cern.ch/doc/master/classRooChi2Var.html
+    print("DEBUGGING: r = ",r)#DEBUGGING
+    chi2 = np.sum(np.square(r))
+    print("DEBUGGING: chi2 = ",chi2)#DEBUGGING
+    ndf = len(y) - len(optParams)
+    print("DEBUGGING: ndf = ",len(y)," - ",len(optParams)," = ",ndf)#DEBUGGING
+    chi2ndf = chi2/ndf
+    print("DEBUGGING: chi2/ndf = ",chi2ndf)#DEBUGGING
+
+    # Setup legend entries for fit info
+    lg = "Fit Info\n-------------------------\n"
+    #lg += f"N = {round(optParams[0],0)}±{round(pcov[0,0],4)}\n"
+    lg += f"α  = {round(optParams[1],3)}±{round(pcov[1,1],7)}\n"
+    lg += f"n  = {round(optParams[2],3)}±{round(pcov[2,2],2)}\n"
+    lg += f"μ  = {round(optParams[3],5)}±{round(pcov[3,3],10)}\n"
+    lg += f"σ  = {round(optParams[4],5)}±{round(pcov[4,4],10)}\n"
+    lg += f"$\chi^{2}$ = {round(chi2ndf,5)}\n"
+    #lg += f"A = {round(optParams[5],0)}±{round(pcov[5,5],2)}\n"
+    #lg += f"β = {round(optParams[6],0)}±{round(pcov[6,6],2)}\n"
+    #lg += f"M = {round(optParams[7],2)}±{round(pcov[7,7],7)}\n"
+    plt.text(low_high[1]-(low_high[1]-low_high[0])/3,1/2*max(hdata[0]),lg,fontsize=20,linespacing=1.25) #NOTE: MAKE THESE PARAMS OPTIONS
+
+    # Show the graph
+    # plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background') #NOTE: COMMENTED OUT FOR DEBUGGING
+    plt.legend(loc='upper left', frameon=False)
+    plt.ylabel('Counts')
+    plt.xlabel('$M_{p\pi^{-}}$ (GeV)')
+
+    print("DEBUGGING: MADE IT! printing out graph to ",os.path.join(log_dir,'parent_decomposition_full_with_fit.png'))#DEBUGGING ADDED 11/4/22
+    f.savefig(os.path.join(log_dir,'parent_decomposition_full_with_fit.png'))
+
+    ################################################################################
+
+    #-------- END ADDED --------#
 
     return (auc,test_acc) #NOTE: Needed for optimization_study() below.
 
@@ -1535,7 +1642,7 @@ def optimization_study(
         criterion = nn.CrossEntropyLoss()
 
         # Make sure log/save directories exist
-        trialdir = args.study_name+'_trial_'+str(trial.number+1)
+        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number+1)+'/' #NOTE +'/' ADDED 11/17/22
         try:
             os.makedirs(args.log+'/'+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
         except FileExistsError:
@@ -1572,19 +1679,8 @@ def optimization_study(
             split=args.split,
             max_events=args.max_events,
             log_dir=trialdir,
-            verbose=args.verbose
+            verbose=True
         )
-
-        #NOTE: #TODO: add extra args to optimize script parser and save hyperparameter choices in running script???? Or just use mlflow....
-        # evaluate_on_data(
-        #     model,
-        #     device,
-        #     dataset=args.datadataset,
-        #     prefix=args.prefix,
-        #     split=args.split,
-        #     log_dir=trialdir,
-        #     verbose=args.verbose
-        # )
 
         return 1.0 - metrics[0] #NOTE: This is so you maximize AUC since can't figure out how to create sqlite3 study with maximization at the moment 8/5/22
 
@@ -1653,7 +1749,7 @@ def optimization_study_dagnn(
         #TODO: Add new options to args in test_dagnn.py DONE
         #TODO: Update model creation below... DONE
         #TODO: Update BCELoss->CrossEntropyLoss below DONE
-        alpha = args.alpha[0] if args.alpha[0] == args.alpha[1] else trial.suggest_int("alpha",args.alpha[0],args.alpha[1])
+        alpha = args.alpha[0] if args.alpha[0] == args.alpha[1] else trial.suggest_float("alpha",args.alpha[0],args.alpha[1]) #NOTE: 11/17/22 CHANGED suggest_int->suggest_float
         batch_size = args.batch[0] if args.batch[0] == args.batch[1] else trial.suggest_int("batch_size",args.batch[0],args.batch[1]) 
         nlayers = args.nlayers[0] if args.nlayers[0] == args.nlayers[1] else trial.suggest_int("nlayers",args.nlayers[0],args.nlayers[1])
         nmlp  = args.nmlp[0] if args.nmlp[0] == args.nmlp[1] else trial.suggest_int("nmlp",args.nmlp[0],args.nmlp[1])
@@ -1738,7 +1834,7 @@ def optimization_study_dagnn(
         dom_criterion   = nn.CrossEntropyLoss()
 
         # Make sure log/save directories exist
-        trialdir = args.study_name+'_trial_'+str(trial.number+1)
+        trialdir = 'trial_'+datetime.datetime.now().strftime("%F")+'_'+args.dataset+'_'+args.study_name+'_'+str(trial.number+1)+'/' #NOTE +'/' ADDED 11/17/22 
         try:
             os.makedirs(args.log+'/'+trialdir) #NOTE: Do NOT use os.path.join() here since it requires that the directory already exist.
         except FileExistsError:
@@ -1821,7 +1917,7 @@ def optimization_study_dagnn(
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="logs/",verbose=True):
+def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="logs/",verbose=True,roc_cut=None,model1=None,use_umap=True):
 
     #TODO: Make these options...
     plt.rc('font', size=20) #controls default text size                                                                                                                     
@@ -1829,7 +1925,9 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     plt.rc('axes', labelsize=25) #fontsize of the x and y labels                                                                                                            
     plt.rc('xtick', labelsize=20) #fontsize of the x tick labels                                                                                                            
     plt.rc('ytick', labelsize=20) #fontsize of the y tick labels                                                                                                            
-    plt.rc('legend', fontsize=15) #fontsize of the legend
+    plt.rc('legend', fontsize=20) #fontsize of the legend
+
+    figsize=(16,10) #NOTE: ADDED 9/30/22
 
     # Load validation data
     test_dataset = GraphDataset(prefix+dataset) # Make sure this is copied into ~/.dgl folder
@@ -1841,8 +1939,28 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     test_bg    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop])#TODO: Figure out nicer way to use subset
     test_bg    = test_bg.to(device)
     prediction = model(test_bg)
-    probs_Y    = torch.softmax(prediction, 1)
-    argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
+    #NOTE: DEBUGGING: 12/29/22
+    is_dagin = False
+    try:
+        nmodels = len(model.models)
+        is_dagin = nmodels==2
+    except AttributeError as ae:
+        print("FROM utils.py:evaluate_on_data() ERROR: could not access attribute model.models")
+        print(ae)
+    #NOTE: END DEBUGGING: 12/29/22
+    probs_Y    = torch.softmax(prediction, 1) if not is_dagin else prediction
+    argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1) if roc_cut is None else torch.tensor([1 if el>roc_cut else 0 for el in probs_Y[:,1]],dtype=torch.long) #NOTE: ADDED 10/25/22
+
+    #NOTE: ADDED 11/10/22
+    if model1 is not None:
+        model1.eval()
+        model1      = model1.to(device)
+        test_bg1    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop])#TODO: Figure out nicer way to use subset
+        test_bg1    = test_bg1.to(device)
+        prediction1 = model1(test_bg1)
+        probs_Y1    = torch.softmax(prediction1, 1)
+        argmax_Y1   = torch.max(probs_Y1, 1)[1].view(-1, 1) if roc_cut is None else torch.tensor([1 if el>roc_cut else 0 for el in probs_Y[:,1]],dtype=torch.long) #NOTE: ADDED 10/25/22
+        argmax_Y    = torch.min(argmax_Y,argmax_Y1) if roc_cut is None else torch.tensor([1 if el>roc_cut and probs_Y1[:,1][idx]>roc_cut else 0 for idx, el in enumerate(probs_Y[:,1])],dtype=torch.long)
 
     # Copy arrays back to CPU
     probs_Y  = probs_Y.cpu()
@@ -1856,17 +1974,101 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     mass_sig_Y    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 1))
     mass_bg_Y     = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 0))
 
-    ##################################################
-    # Define fit function
-    def func(x, N, beta, m, loc, scale, A, B, C):
-        return N*crystalball.pdf(-x, beta, m, -loc, scale) + A*(1 - B*(x - C)**2)
-        
-    def sig(x, N, beta, m, loc, scale):
-        return N*crystalball.pdf(-x, beta, m, -loc, scale)
-        
-    def bg(x, A, B, C):
-        return A*(1 - B*(x - C)**2)
-    ##################################################
+    
+
+    #DEBUGGING #NOTE JUST FOR EVALUATING NO GNN FIT WITH EXACT STATISTICS TO HAVE COMPARABLE FOM
+    #mass_sig_Y    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=False)
+    #DEBUGGING
+
+    #try: #DEBUGGING #ADDED 11/29/22
+    import umap
+    import seaborn as sns
+    from sklearn.manifold import TSNE
+    reducer = umap.UMAP() if use_umap else TSNE(2)
+    extractor = None
+    latent_repr = None
+    model_type = None
+    try:
+        model_type='DAGIN'
+        extractor = model.models[0]
+        latent_repr = extractor.get_latent_repr(test_bg).detach()
+        print("DEBUGGING: type(latent_repr) = ",type(latent_repr[0]))#DEBUGGING
+        print("DEBUGGING: latent_repr[0] = ",latent_repr[0])#DEBUGGING
+        print("DEBUGGING: len(latent_repr) = ",len(latent_repr))#DEBUGGING
+    except AttributeError as ae:
+        model_type='GIN'
+        print("AttributeError: could not access model.models")#DEBUGGING
+        print(ae)
+        extractor = model
+        latent_repr = extractor.get_latent_repr(test_bg).detach()
+        print("DEBUGGING: type(latent_repr) = ",type(latent_repr[0]))#DEBUGGING
+        print("DEBUGGING: latent_repr[0] = ",latent_repr[0])#DEBUGGING
+        print("DEBUGGING: len(latent_repr) = ",len(latent_repr))#DEBUGGING
+
+    print("DEBUGGING: type(latent_repr) = ",type(latent_repr))#DEBUGGING
+    print("DEBUGGING: latent_repr = ",latent_repr)#DEBUGGING
+    embedding = reducer.fit_transform(latent_repr)
+    print("DEBUGGING: type(embedding) = ",type(embedding))#DEBUGGING
+    print("DEBUGGING: embedding.shape = ",embedding.shape)#DEBUGGING
+
+    visualization_method = 'umap' if use_umap else 'tsne'
+
+    np.save(log_dir+'latent_repr.npy',np.array(latent_repr))#DEBUGGING: NOTE ADDED 11/30/22
+    np.save(log_dir+visualization_method+'_embedding.npy',np.array(embedding))#DEBUGGING: NOTE ADDED 11/30/22
+
+    f = plt.figure(figsize=figsize)
+    plt.scatter(embedding[:,0],embedding[:,1])
+    plt.title(visualization_method+' projection of the '+model_type+' latent space presentation')
+    f.savefig(os.path.join(log_dir,visualization_method+'_basic.png'))
+    # Plot separated into true/false sig/bg
+
+    em_sig = ma.array(embedding,mask=[[el,el] for el in mass_sig_Y.mask])
+    em_bg = ma.array(embedding,mask=[[el,el] for el in mass_bg_Y.mask])
+
+    #visualization_method = 'umap' if use_umap else 'tsne'
+
+    # Set plotting options
+    alpha = 0.05
+    mew = 0.0
+
+    # Plot visualization method decisions separated into signal/background
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title('Separated '+visualization_method+' distribution')
+    ax.scatter(em_sig[:,0][~em_sig.mask[:,0]],em_sig[:,1][~em_sig.mask[:,1]], alpha=alpha, linewidths=mew, label='sig')
+    ax.scatter(em_bg[:,0][~em_bg.mask[:,0]],em_bg[:,1][~em_bg.mask[:,1]], alpha=alpha, linewidths=mew, label='bg')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_nn_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    # Plot visualization method decisions separated into signal/background
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title(visualization_method+' sig distribution')
+    ax.scatter(em_sig[:,0][~em_sig.mask[:,0]],em_sig[:,1][~em_sig.mask[:,1]], color="tab:blue", alpha=alpha, linewidths=mew, label='sig')
+    #ax.scatter(em_bg[:,0][~em_bg.mask[:,0]],em_bg[:,1][~em_bg.mask[:,1]], alpha=alpha, linewidths=mew, label='bg')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_nn_sig_only_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    # Plot visualization decisions separated into signal/background
+    f, ax = plt.subplots(figsize=figsize)
+    plt.title(visualization_method+' bg distribution')
+    #ax.scatter(em_sig[:,0][~em_sig.mask[:,0]],em_sig[:,1][~em_sig.mask[:,1]], alpha=alpha, linewidths=mew, label='sig')
+    ax.scatter(em_bg[:,0][~em_bg.mask[:,0]],em_bg[:,1][~em_bg.mask[:,1]], color="tab:orange", alpha=alpha, linewidths=mew, label='bg')
+    ax.legend(loc='upper left', frameon=False)
+    f.savefig(os.path.join(log_dir,visualization_method+'_nn_bg_only_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
+
+    #except Exception:
+    #    print("COULD NOT IMPORT UMAP OR ACCESS MODEL EXTRACTOR ELEMENT...")#DEBUGGING ADDED 11/29/22
+
+    ################################################### #NOTE: COMMENTED OUT 10/21/22
+    ## Define fit function
+    #def func(x, N, beta, m, loc, scale, A, B, C):
+    #    return N*crystalball.pdf(-x, beta, m, -loc, scale) + A*(1 - B*(x - C)**2)
+    #    
+    #def sig(x, N, beta, m, loc, scale):
+    #    return N*crystalball.pdf(-x, beta, m, -loc, scale)
+    #    
+    #def bg(x, A, B, C):
+    #    return A*(1 - B*(x - C)**2)
+    ###################################################
 
     # Plot mass decisions separated into signal/background
     bins = 100
@@ -1875,29 +2077,61 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     plt.title('Separated mass distribution')
     # mass_all = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float())
     # hdata = plt.hist(mass_all, color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
-    hdata = plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='m', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal')
+    hdata = plt.hist(mass_sig_Y[~mass_sig_Y.mask], color='tab:orange', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='signal') #NOTE: color='m' removed 9/28/22 #NOTE: DEBUGGING color='m', removed 11/4/22
     # plt.show()#DEBUGGING
     # return #DEBUGGING
     
     # Fit output of NN
     print("DEBUGGING: hdata[0][-1] = ",hdata[0][-1])#DEBUGGING
-    N, beta, m, loc, scale, A, B, C = 5, 1, 1.112, 1.115, 0.008, hdata[0][-1], 37, 1.24
+    print("DEBUGGING: hdata[0] = ",hdata[0])#DEBUGGING NOTE: ADDED 9/19/22
+    N, beta, m, loc, scale, A, B, C = 10, 1, 1.112, 1.115, 0.008, np.max(hdata[0][-10:-1]), 37, 1.24 #NOTE: Updated with np.max 10/28/22
     if A==0: A = 0.1#DEBUGGING
-    d_N, d_beta, d_m, d_loc, d_scale, d_A, d_B, d_C = N/0.01, beta/0.1, m/0.1, loc/0.1, scale/0.01, A/10, B/0.1, C/0.1
+    d_N, d_beta, d_m, d_loc, d_scale, d_A, d_B, d_C = N/0.01, beta/0.1, m/0.1, loc/0.1, scale/0.01, A/10, B/0.1, C/1
     #d_N, d_beta, d_m, d_loc, d_scale, d_A, d_B, d_C = N/0.001, beta/0.001, m/0.01, loc/0.001, scale/0.001, A/1, B/0.1, C/5
-    parsMin = [N-d_N, beta-d_beta, m-d_m, loc-d_loc, scale-d_scale, A-d_A, B-d_B, C-d_C]
-    parsMax = [N+d_N, beta+d_beta, m+d_m, loc+d_loc, scale+d_scale, A+d_A, B+d_B, C+d_C]
+    parsMin = [N-d_N, beta-d_beta, m-d_m, loc-d_loc, scale-d_scale, B-d_B]# [N-d_N, beta-d_beta, m-d_m, loc-d_loc, scale-d_scale, A-d_A, B-d_B, C-d_C] #NOTE: CHANGED 10/21/22
+    parsMax = [N+d_N, beta+d_beta, m+d_m, loc+d_loc, scale+d_scale, B+d_B]# [N+d_N, beta+d_beta, m+d_m, loc+d_loc, scale+d_scale, A+d_A, B+d_B, C+d_C] #NOTE: CHANGED 10/21/22
     print(parsMin)#DEBUGGING
     print(parsMax)#DEBUGGING
-    optParams, pcov = opt.curve_fit(func, hdata[1][:-1], hdata[0], method='trf', bounds=(parsMin,parsMax))
+    #N/=8#NOTE: DEBUGGING ADDED 9/19/22
 
+    ################################################# #NOTE: UPDATED FUNCTION DEFINITIONS 10/21/22
+    # Define fit function
+    def func(x, N, beta, m, loc, scale, B, A=A, C=C):
+        return N*crystalball.pdf(-x, beta, m, -loc, scale) + A*(1 - B*(x - C)**2)
+
+    def sig(x, N, beta, m, loc, scale):
+        return N*crystalball.pdf(-x, beta, m, -loc, scale)
+
+    def bg(x, B, A=A, C=C):
+        return A*(1 - B*(x - C)**2)
+    ##################################################
+
+    optParams, pcov = opt.curve_fit(func, hdata[1][:-1], hdata[0], method='trf', bounds=(parsMin,parsMax))
+    #optParams = [N, beta, m, loc, scale, A, B, C] #DEBUGGING
+    #pcov = np.array([[0.0 for i in optParams] for i in optParams])#DEBUGGING
+
+    np.save(log_dir+'mass_sig_Y.npy',np.array(mass_sig_Y))
+    np.save(log_dir+'mass_bg_Y.npy',np.array(mass_bg_Y))#NOTE: ADDED 10/21/22 #NOTE: ADDED 12/1/22 Removed mask index here and above.
+
+    np.save(log_dir+'mass_sig_Y_mask.npy',mass_sig_Y.mask)#NOTE: ADDED 12/1/22
+    np.save(log_dir+'mass_bg_Y_mask.npy',mass_bg_Y.mask)#NOTE: ADDED 12/1/22
+    
     # Plot fit
     x = np.linspace(low_high[0],low_high[1],bins)#mass_sig_Y[~mass_sig_Y.mask]
     y = hdata[0]
+    
     plt.plot(x, func(x, *optParams), color='r')
     plt.plot(x, sig(x, *optParams[0:5]), color='tab:purple')
-    plt.plot(x, bg(x, *optParams[5:]), color='b')
-    bghist = plt.hist(x, weights=y-bg(x, *optParams[5:]), bins=bins, range=low_high, histtype='step', alpha=0.5, color='b')
+    plt.plot(x, bg(x, *optParams[5:]), color='b') #NOTE: CHANGED 10/21/22 optParams[5:] -> optParams[-1]
+    bghist = plt.hist(x, weights=y-bg(x, *optParams[5:]), bins=bins, range=low_high, histtype='step', alpha=0.5, color='b') #NOTE: CHANGED 10/21/22 optParams[5:] -> optParams[-1]
+
+    r = np.divide(y - func(x, *optParams),np.sqrt([el if el>0 else 1 for el in func(x, *optParams)]))
+    print("DEBUGGING: r = ",r)#DEBUGGING
+    print("DEBUGGING: func(x, *optParams) = ",func(x, *optParams))#DEBUGGING
+    chi2 = np.sum(np.square(r))
+    print("DEBUGGING: chi2 = ",chi2)#DEBUGGING
+    chi2ndf = chi2/len(optParams)
+    print("DEBUGGING: chi2/ndf = ",chi2ndf)#DEBUGGING
     
     # Get S and N before and after? #DEBUGGING: ADDED
     import scipy.integrate as integrate
@@ -1917,14 +2151,26 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     print("bin1 = ",bin1)#DEBUGGING
     print("bin2 = ",bin2)#DEBUGGING
 
-    integral_bghist = sum(bghist[0][bin1:bin2])*binwidth
+    integral_bghist = sum(bghist[0][bin1:bin2])
     print("integral_bghist = ",integral_bghist)#DEBUGGING
+    
+    integral_tothist = sum(hdata[0][bin1:bin2])
+    print("integral_tothist = ",integral_tothist)#DEBUGGING
+    #if integral_tothist<=0:
+    #    integral_tothist=1
+    #    print("DEBUGGING: ERROR: integral_tothist=0 reassign to 1")#DEBUGGING
+    fom = integral_bghist/np.sqrt(integral_tothist)
+    print("FOM = ",(integral_bghist)/np.sqrt(integral_tothist))#DEBUGGING
+    if integral_tothist<=0:
+        integral_tothist=1
+        print("DEBUGGING: ERROR: integral_tothist=0 reassign to 1")#DEBUGGING  
+    print("S/N = ",(integral_bghist)/(integral_tothist))#DEBUGGING
 
     print("optParams = ",optParams)#DEBUGGING
 
     resultN = integrate.quad(lambda x: func(x, *optParams),mmin,mmax)[0] / binwidth
     resultS = integrate.quad(lambda x: sig(x, *optParams[0:5]),mmin,mmax)[0] / binwidth
-    resultB = integrate.quad(lambda x: bg(x, *optParams[5:]),mmin,mmax)[0] / binwidth
+    resultB = integrate.quad(lambda x: bg(x, *optParams[5:]),mmin,mmax)[0] / binwidth #NOTE: CHANGED 10/21/22 optParams[5:] -> optParams[-1]  
 
     print("resultN = ",resultN)#DEBUGGING
     print("resultS = ",resultS)#DEBUGGING
@@ -1937,25 +2183,26 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     # print("result_N = ",result_N)#DEBUGGING
     # print("result_S = ",result_S)#DEBUGGING
     # print("result_B = ",result_B)#DEBUGGING
-
+    
     # Setup legend entries for fit info
     lg = "Fit Info\n-------------------------\n"
-    lg += f"N = {round(optParams[0],0)}±{round(pcov[0,0],5)}\n"
-    lg += f"α = {round(optParams[1],3)}±{round(pcov[1,1],5)}\n"
-    lg += f"n = {round(optParams[2],3)}±{round(pcov[2,2],5)}\n"
-    lg += f"μ = {round(optParams[3],5)}±{round(pcov[3,3],5)}\n"
-    lg += f"σ = {round(optParams[4],5)}±{round(pcov[4,4],5)}\n"
-    lg += f"A = {round(optParams[5],0)}±{round(pcov[5,6],5)}\n"
-    lg += f"β = {round(optParams[6],0)}±{round(pcov[6,6],5)}\n"
-    lg += f"M = {round(optParams[7],2)}±{round(pcov[7,7],5)}\n"
-    plt.text(low_high[1]-(low_high[1]-low_high[0])/3,2/3*max(hdata[0]),lg,fontsize=16,linespacing=1.5)
-
+    #lg += f"N = {round(optParams[0],0)}±{round(pcov[0,0],5)}\n" #NOTE: COMMENTED OUT FOR DEBUGGING
+    lg += f"α  = {round(optParams[1],3)}±{round(pcov[1,1],5)}\n"
+    lg += f"n  = {round(optParams[2],3)}±{round(pcov[2,2],5)}\n"
+    lg += f"μ  = {round(optParams[3],5)}±{round(pcov[3,3],5)}\n"
+    lg += f"σ  = {round(optParams[4],5)}±{round(pcov[4,4],5)}\n"
+    lg += f"$\chi^{2}$ = {round(chi2ndf,5)}\n"
+    #lg += f"A = {round(optParams[5],0)}±{round(pcov[5,6],5)}\n"
+    #lg += f"β = {round(optParams[6],0)}±{round(pcov[6,6],5)}\n"
+    #lg += f"M = {round(optParams[7],2)}±{round(pcov[7,7],5)}\n"
+    plt.text(low_high[1]-(low_high[1]-low_high[0])/3,0.5*max(max(mass_bg_Y[~mass_bg_Y.mask] if len(mass_bg_Y[~mass_bg_Y.mask])>0 else [0]),max(hdata[0])),lg,fontsize=20,linespacing=1.25)
+    
     # Show the graph
-    plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background')
+    #plt.hist(mass_bg_Y[~mass_bg_Y.mask], color='c', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=False, label='background') #NOTE: COMMENTED OUT FOR DEBUGGING
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+dataset+'.png'))
 
     ##########################################################
     # Plot testing decisions
@@ -1963,13 +2210,20 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     low = min(np.min(p) for p in probs_Y[:,1].detach().numpy())
     high = max(np.max(p) for p in probs_Y[:,0].detach().numpy())
     low_high = (low,high)
-    f = plt.figure()
+    f = plt.figure(figsize=figsize)
     plt.clf()
-    plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
-    plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
-    plt.xlabel('output')
-    plt.ylabel('counts')
-    f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+".png"))
+    #plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
+    #plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
+    plt.hist(probs_Y[:,0].detach().numpy(), color='b', range=low_high, bins=bins, histtype='stepfilled', log=True, alpha=0.5, density=False, label='hist2') #NOTE: #DEBUGGING: log=True added 11/9/22
+    plt.xlabel('NN Output')
+    plt.ylabel('Counts')
+    #plt.ylim((0.0,4000))#NOTE: DEBUGGING ADDED 9/30/22
+    f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+dataset+".png"))
+
+    np.save(log_dir+'prediction.npy',prediction.detach().numpy())#NOTE: ADDED 12/29/22
+    np.save(log_dir+'probs_Y.npy',probs_Y.detach().numpy())#NOTE: ADDED 12/29/22
+
+    return fom, resultN, resultS, resultB
 
 #------------------------- Classes -------------------------#
 

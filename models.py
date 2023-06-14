@@ -152,17 +152,23 @@ class MLP_SIGMOID(nn.Module):
             for layer in range(num_layers - 1):
                 self.batch_norms.append(nn.BatchNorm1d((hidden_dim)))
         self.sigmoid = nn.Sigmoid()
-
+    '''
+    NOTE:
+    Removed sigmoid layer (would've been applied on the layer being returned)
+    ex: return
+    '''
     def forward(self, x):
         if self.linear_or_not:
             # If linear model
-            return self.sigmoid(self.linear(x))
+            return self.linear(x)
+#             return self.sigmoid(self.linear(x))
         else:
             # If MLP
             h = x
             for i in range(self.num_layers - 1):
                 h = F.relu(self.batch_norms[i](self.linears[i](h)))
-            return self.sigmoid(self.linears[-1](h))
+#             return self.sigmoid(self.linears[-1](h))
+            return self.linears[-1](h)
 
 
 class MLP(nn.Module):
@@ -205,6 +211,7 @@ class MLP(nn.Module):
 
             for layer in range(num_layers - 1):
                 self.batch_norms.append(nn.BatchNorm1d((hidden_dim)))
+
 
     def forward(self, x):
         if self.linear_or_not:
@@ -309,6 +316,30 @@ class GIN(nn.Module):
             score_over_layer += self.drop(self.linears_prediction[i](pooled_h))
 
         return score_over_layer
+    def get_latent_repr(self, g, key='data'):
+        # list of hidden representation at each layer (including input)
+        h = g.ndata[key].float()
+        hidden_rep = [h]
+
+        for i in range(self.num_layers - 1):
+            h = self.ginlayers[i](g, h)
+            h = self.batch_norms[i](h)
+            h = F.relu(h)
+            hidden_rep.append(h)
+
+        score_over_layer = 0
+
+        # perform pooling over all nodes in each graph in every layer
+        latent_repr = []
+        for i, h in enumerate(hidden_rep):
+            pooled_h = self.pool(g, h)
+            latent_repr.append(pooled_h)
+
+        #print("DEBUGGING: len(latent_repr) = ",len(latent_repr))#DEGBUGGING
+        #for i, el in enumerate(latent_repr):
+        #    print("DEBUGGING: latent_repr[i].shape = ",latent_repr[i].shape)#DEGBUGGING
+
+        return torch.cat(latent_repr,dim=-1)
 
     @property
     def name(self):

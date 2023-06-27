@@ -85,29 +85,40 @@ Latent_data Class
                         ~samples: tensor of samples
 '''
 class Latent_data:
-    def __init__(self, in_tensor):
+    def __init__(self, in_tensor,labels):
         self.data = in_tensor
         self.num_events = in_tensor.size()[0]
         self.latent_size = in_tensor.size()[1]
+        self.labels = labels
     def set_batch_size(self,batch_size):
         self.batch_size = batch_size
         self.max_iter = int(self.num_events / self.batch_size)
-    def sample(self,iteration = 0, random = False):
+    def set_mass(self, mass):
+        self.mass = mass
+    def sample(self,iteration = 0, random = False, _give_labels = False):
         if(random):
-            return self.sample_random()
+            return self.sample_random(give_labels = _give_labels)
         else:
-            return self.sample_fixed(iteration)
-    def sample_fixed(self,iteration):
+            return self.sample_fixed(iteration,give_labels = _give_labels)
+    def sample_fixed(self,iteration,give_labels = False):
         #0 index iterations - the "first" iteration is with iteration = 0
         # Calculate the first index we want to take from training data (rest of data is directly after)
         begin = iteration * self.batch_size
         # initialize
         samples = torch.zeros(self.batch_size, self.latent_size)
+        labels = torch.zeros(self.batch_size, 1)
+#         print(f"labels max (inside sample_fixed): {labels.max()}")
         #loop over consecutive tensors, save to return tensor
-        for i in range(self.batch_size):
-            samples[i] = self.data[begin + i]
-        return samples
-    def sample_random(self):
+        if(give_labels):
+            for i in range(self.batch_size):
+                samples[i] = self.data[begin + i]
+                labels[i] = self.labels[begin+i]
+            return samples,labels
+        else:
+            for i in range(self.batch_size):
+                samples[i] = self.data[begin + i]
+            return samples
+    def sample_random(self,labels = False):
         indices = rng.integers(low=0, high=self.num_events, size=self.batch_size)
         samples = torch.zeros(self.batch_size,self.latent_size)
         for index in range(len(indices)):
@@ -133,27 +144,35 @@ create_latent_data Function
         Returns:
             (Latent_data) object with dataset loaded, preconfigured with batch size
 '''
-def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossenlab/mfm45/.dgl/", split = 0.8, max_events = 140000, num_samples = 250, mode = "default"):
+def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossenlab/mfm45/.dgl/", split = 0.8, max_events = 140000, num_samples = 250, mode = "default",shuffle = True):
+    val_split = (1 - split) / 2
     if(mode == "test"):
-        data_range = range(int(split*max_events),max_events)
+        data_range = range(int(split*max_events),int((val_split + split)*max_events))
     elif(mode == "train"):
         data_range = range(0, int(split*max_events))
+    elif(mode == "val"):
+        data_range = range(int((val_split + split)*max_events),max_events)
     elif(mode == "default"):
         print(f"No mode given, defaulting to training\n")
         data_range = range(0, int(split*max_events))
     else:
-        raise Exception("Invalid mode: {mode}\nPlease use either \"train,\" or \"test\" ")
-    
+        raise Exception("Invalid mode: {mode}\nPlease use either \"train,\" or \"test\" ", mode)
     dataset = GraphDataset(prefix+dataset_directory)
     dataset.load()
+    if(shuffle):
+        dataset.shuffle()
     dataset = Subset(dataset,data_range)
     dgl_batch = dgl.batch(dataset.dataset.graphs[dataset.indices.start:dataset.indices.stop])
+    labels = dataset.dataset.labels[dataset.indices.start:dataset.indices.stop,0].clone().detach().float().view(-1, 1)
+    mass = dataset.dataset.labels[dataset.indices.start:dataset.indices.stop,1].clone().detach().float()
     dgl_batch = dgl_batch.to(device)
+    labels = labels.to(device)
     latent = extractor.get_latent_repr(dgl_batch).detach().cpu()
-    latent_obj = Latent_data(latent)
+    latent_obj = Latent_data(latent,labels)
     latent_obj.set_batch_size(num_samples)
+    latent_obj.set_mass(mass)
     return latent_obj
-
+    
 '''
 get_masked_affine function
     Info
@@ -231,26 +250,39 @@ train function
             *loss_hist: (list of floats) list of loss values for each batch for plotting
 '''
 
-def train(in_data, model):
+def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1):
     # train the MC model
+    if(val):
+        val_data.set_batch_size(int(floor(val_data.num_events / in_data.max_iter)))
+        val_loss_hist = np.array([])
     model.train()
     loss_hist = np.array([])
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, weight_decay=1e-5)
-    with tqdm(total=in_data.max_iter, position=0, leave=True) as pbar:
-        for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
-            optimizer.zero_grad()
-            #randomly sample the latent space
-            samples = in_data.sample(iteration = it)
-            samples = samples.to(device)
-            loss = model.forward_kld(samples)
-            # Do backprop and optimizer step
-            if ~(torch.isnan(loss) | torch.isinf(loss)):
-                loss.backward()
-                optimizer.step()
-            # Log loss
-            if~(torch.isnan(loss)):
-                loss_hist = np.append(loss_hist, loss.to('cpu').data.numpy())
-    return loss_hist
+    for i in range(num_epochs):
+        with tqdm(total=in_data.max_iter, position=0, leave=True) as pbar:
+            for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
+                optimizer.zero_grad()
+                #randomly sample the latent space
+                samples = in_data.sample(iteration = it)
+                samples = samples.to(device)
+                loss = model.forward_kld(samples)
+                # Do backprop and optimizer step
+                if ~(torch.isnan(loss) | torch.isinf(loss)):
+                    loss.backward()
+                    optimizer.step()
+                # Log loss
+                if~(torch.isnan(loss)):
+                    loss_hist = np.append(loss_hist, loss.to('cpu').data.numpy())
+            if(val):
+                val_samples = val_data.sample(iteration = it)
+                val_samples = val_samples.to(device)
+                val_loss = model.forward_kld(val_samples)
+                if~(torch.isnan(val_loss)):
+                    val_loss_hist = np.append(val_loss_hist, val_loss.to('cpu').data.numpy())
+    if(val):
+        return loss_hist, val_loss_hist
+    else:
+        return loss_hist
 
 '''
 plot_loss function
@@ -264,9 +296,11 @@ plot_loss function
             *label: (string) data label for legend
 '''
 
-def plot_loss(loss_hist, save = False, save_loc = "plots/loss.jpeg", label = "loss"):
+def plot_loss(loss_hist,plot_val = False, val_loss_hist = np.array([]),save = False, save_loc = "plots/loss.jpeg", label = "loss"):
     fig = plt.figure(figsize=(10, 10))
     plt.plot(loss_hist, label=label)
+    if(plot_val):
+        plt.plot(val_loss_hist, label = "val")
     plt.legend()
     plt.show()
     print(f"Lowest Loss: {loss_hist.min()}")
@@ -348,7 +382,7 @@ plot_UMAP_sidebyside function
             Plots side-by-side projections w/matplotlib
 '''    
     
-def plot_UMAP_sidebyside(left_data, right_data, left_color, right_color, marker = 'o', description = "none", figsize = (16,5), left_description = "none", right_description = "none",marker_size = 2):
+def plot_UMAP_sidebyside(left_data, right_data, left_color, right_color, marker = 'o', description = "none", figsize = (16,5), left_description = "none", right_description = "none",marker_size = 2, save="False", save_loc = "plots/UMAP_untitled.jpeg"):
     fig, (ax11, ax12) = plt.subplots(1,2, figsize = figsize)
     fig.suptitle(f"{description} projection with UMAP")
     ax11.plot(left_data[:,0],left_data[:,1],marker,markersize=marker_size,color = left_color)
@@ -358,6 +392,8 @@ def plot_UMAP_sidebyside(left_data, right_data, left_color, right_color, marker 
     if not (right_description == "none"):
         ax12.set_title(right_description)
     plt.show()
+    if save:
+        fig.savefig(save_loc)
     
 '''
 plot_UMAP_overlay function
@@ -382,7 +418,7 @@ plot_UMAP_overlay function
             Plots side-by-side projections w/matplotlib
 '''  
     
-def plot_UMAP_overlay(left_data, right_data, left_color, right_color, marker = 'o', description = "none", left_description = "none", right_description = "none",marker_size = 2,alpha = 0.1):
+def plot_UMAP_overlay(left_data, right_data, left_color, right_color, marker = 'o', description = "none", left_description = "none", right_description = "none",marker_size = 2,alpha = 0.1, save="False", save_loc = "plots/UMAP_untitled.jpeg"):
     fig, ax = plt.subplots()
     ax = ax.twinx()
     if(description == "none"):
@@ -404,3 +440,5 @@ def plot_UMAP_overlay(left_data, right_data, left_color, right_color, marker = '
         for lh in leg.legend_handles:
             lh.set_alpha(1)
     plt.show()
+    if save:
+        fig.savefig(save_loc)

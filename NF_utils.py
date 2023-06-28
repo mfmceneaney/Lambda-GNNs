@@ -666,9 +666,9 @@ def plot_classified(masses, classes, label = "none",save = False, save_loc = "pl
     h1.hist(signal, bins = bins, label = "signal", color = "b")
     h2.hist(bg, bins = bins, label = "background", color = "xkcd:orange")
     if(label != "none"):
-        h3.hist(training_data_MC.mass, bins = bins, label = label)
-    else:
-        h3.hist(training_data_MC.mass, bins = bins)
+        h3.hist(mass, bins = bins, label = label)
+    else:es
+        h3.hist(masses, bins = bins)
 
     leg = histos.legend(title = "Key")
     histos.show()

@@ -246,17 +246,26 @@ train function
         -Parameters:
             *in_data: (Latent_data object) data you want to train model on
             *model: (nf.NormalizingFlow) model to train
+            *val: (bool) if true, also performs validation and returns validation histogram
+            *val_data: (Latent_data) validation data
+            *num_epochs: (int) number of times to run over the whole training dataset
+            *compact_num: (int) number of iterations to average over before producing compact histogram
         -Returns:
-            *loss_hist: (list of floats) list of loss values for each batch for plotting
+            *compact_hist: (list of floats) list of loss values below a certain threshold, averaged, for readable plotting
+            *full_loss_hist: (list of floats) list of all loss values for each batch
+            *compact_hist_val: (list of floats) same as compact_hist but for validation
+            *full_val_loss_hist: (list of floats) same as full_loss_hist but for validation
 '''
 
-def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1):
+def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1, compact_num = 20):
     # train the MC model
     if(val):
-        val_data.set_batch_size(int(floor(val_data.num_events / in_data.max_iter)))
+        val_data.set_batch_size(int(np.floor(val_data.num_events / in_data.max_iter)))
         val_loss_hist = np.array([])
+        full_val_loss_hist = np.array([])
     model.train()
     loss_hist = np.array([])
+    full_loss_hist = np.array([])
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, weight_decay=1e-5)
     for i in range(num_epochs):
         with tqdm(total=in_data.max_iter, position=0, leave=True) as pbar:
@@ -272,17 +281,43 @@ def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,7
                     optimizer.step()
                 # Log loss
                 if~(torch.isnan(loss)):
-                    loss_hist = np.append(loss_hist, loss.to('cpu').data.numpy())
-            if(val):
-                val_samples = val_data.sample(iteration = it)
-                val_samples = val_samples.to(device)
-                val_loss = model.forward_kld(val_samples)
-                if~(torch.isnan(val_loss)):
-                    val_loss_hist = np.append(val_loss_hist, val_loss.to('cpu').data.numpy())
+                    full_loss_hist = np.append(loss_hist, loss.to('cpu').data.numpy())
+                    if(loss < 1000):
+                        loss_hist = np.append(loss_hist, loss.to('cpu').data.numpy())
+                if(val):
+                    val_samples = val_data.sample(iteration = it)
+                    val_samples = val_samples.to(device)
+                    val_loss = model.forward_kld(val_samples)
+                    if~(torch.isnan(val_loss)):
+                        full_val_loss_hist = np.append(val_loss_hist, val_loss.to('cpu').data.numpy())
+                        if(val_loss < 1000):
+                            val_loss_hist = np.append(val_loss_hist, val_loss.to('cpu').data.numpy())
+                            
+    #
+    # This section of code exists solely to create more readable histograms
+    #
+    running_ttl = 0
+    compact_hist = np.array([])
+    j = 0
+    for i in range(loss_hist.size):
+        if(j != (i // compact_num)):
+            compact_hist = np.append(compact_hist,running_ttl / compact_num)
+            running_ttl = 0
+        j = i // compact_num
+        running_ttl += loss_hist[i]
     if(val):
-        return loss_hist, val_loss_hist
+        running_ttl_val = 0
+        compact_hist_val = np.array([])
+        j = 0
+        for i in range(val_loss_hist.size):
+            if(j != (i // compact_num)):
+                compact_hist_val = np.append(compact_hist_val,running_ttl_val / compact_num)
+                running_ttl_val = 0
+            j = i // compact_num
+            running_ttl_val += val_loss_hist[i]
+        return compact_hist, compact_hist_val, full_loss_hist, full_val_loss_hist
     else:
-        return loss_hist
+        return compact_hist, loss_hist
 
 '''
 plot_loss function
@@ -442,3 +477,200 @@ def plot_UMAP_overlay(left_data, right_data, left_color, right_color, marker = '
     plt.show()
     if save:
         fig.savefig(save_loc)
+        
+        
+'''
+NFClassifier class
+    Info:
+        -Class for creating a simple classifier that can be used for classifying latent representations of Lambda events
+    Reference:
+        -Parameters:
+            *input_size: (int, default = 71) size of feature space of data
+            *num_classes: (int, default = 2) number of classes for the classifier to pick between
+            *hidden_dim: (int, default = 256) dimension of hidden layers
+            *num_layers: (int, default = 3) number of layers to use in classifier
+        -Functions:
+            *forward: performs forward pass of classifier and returns classification in tuple
+'''
+
+class NFClassifier(nn.Module):
+    """
+    Classifier for normalized tensors
+    """
+    def __init__(self, input_size=71, num_classes=2, hidden_dim = 256, num_layers = 5):
+        super(NFClassifier, self).__init__()
+        self.layer = nn.Sequential()
+        for i in range(num_layers):
+            if(i == 0):
+                self.layer.append(
+                nn.Linear(input_size, hidden_dim)
+                )
+                self.layer.append(
+                    nn.ReLU(inplace=True)
+                )
+            elif(i == num_layers - 1):
+                self.layer.append(
+                nn.Linear(hidden_dim, num_classes)
+                )
+            else:
+                self.layer.append(
+                    nn.Linear(hidden_dim, hidden_dim)
+                )
+                self.layer.append(
+                    nn.ReLU(inplace=True)
+                )
+        self.name = "Classifier"
+        
+    def forward(self, h):
+        c = self.layer(h)
+        return c
+    
+    # @property
+    def name(self):
+        """
+        Name of model.
+        """
+        return self.name
+    
+    
+'''
+train_classifier function
+'''
+
+def train_classifier(train_data, classifier, criterion, optimizer, val = True, val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1):
+    loss_hist = np.array([])
+    if(val):
+        val_data.set_batch_size(int(np.floor(val_data.num_events / train_data.max_iter)))
+        val_loss_hist = np.array([])
+    for i in range(num_epochs):
+        epoch_hist = np.array([])
+        val_epoch_hist = np.array([])
+        with tqdm(total=train_data.max_iter, position=0, leave=True) as pbar:
+            for it in tqdm(range(train_data.max_iter), position = 0, leave=True):
+                optimizer.zero_grad()
+                #randomly sample the latent space
+                samples, labels = train_data.sample(iteration = it, _give_labels = True)
+                samples = samples.to(device)
+                labels = (labels.type(torch.LongTensor)).to(device)
+                # forward + backward + optimize
+                outputs = classifier(samples)
+                loss = criterion(outputs, labels[:,0])
+                # Do backprop and optimizer step
+                if ~(torch.isnan(loss) | torch.isinf(loss)):
+                    loss.backward()
+                    optimizer.step()
+                # Log loss
+                if~(torch.isnan(loss)):
+                    epoch_hist = np.append(epoch_hist, loss.to('cpu').data.numpy())
+                if(val):
+                    #validation
+                    val_samples, val_labels = val_data.sample(iteration = it, _give_labels = True)
+                    val_samples = val_samples.to(device)
+                    val_labels = (val_labels.type(torch.LongTensor)).to(device)
+                    val_outputs = classifier(val_samples)
+                    val_loss = criterion(val_outputs, val_labels[:,0])
+                    val_epoch_hist = np.append(val_epoch_hist, val_loss.to('cpu').data.numpy())
+        loss_hist = np.append(loss_hist, epoch_hist.mean())
+        if(val):
+            val_loss_hist = np.append(val_loss_hist, val_epoch_hist.mean())
+
+    print('Finished Training')
+    if(val):
+        return loss_hist, val_loss_hist
+    else:
+        return loss_hist
+    
+'''
+test_classifier_MC function
+
+'''
+def test_classifier_MC(test_data, classifier):
+    outputs = torch.empty(test_data.num_events,2)    
+    with tqdm(total=test_data.max_iter, position=0, leave=True) as pbar:
+        for it in tqdm(range(test_data.max_iter), position = 0, leave=True):
+            #randomly sample the latent space
+            samples, labels = test_data.sample(iteration = it, _give_labels = True)
+            samples = samples.to(device)
+            # forward + backward + optimize
+            output_batch = classifier(samples)
+            for i in range(test_data.batch_size):
+                outputs[it*test_data.batch_size + i] = output_batch[i]
+    test_Y     = test_data.labels.clone().detach().float().view(-1, 1).to("cpu")
+    probs_Y = torch.softmax(outputs, 1)
+    argmax_Y = torch.max(probs_Y, 1)[1].view(-1,1)
+    test_acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
+    print(f"Accuracy: {test_acc * 100}")    
+    
+    
+'''
+test_classifier_data function
+    Info
+        -Function to classify Lambda events from data where labels are not given
+    Reference
+        -Parameters
+            *test_data: (Latent_data) data to classify
+            *classifier: (NFClassifier) trained classification model to classify data
+        -Returns
+            *argmax_Y: (tensor) predicted labels according to classifier
+'''
+    
+def test_classifier_data(test_data, classifier):
+    outputs_data = torch.empty(test_data.num_events,2)
+    #Converting normalized DATA to classifier output
+    with tqdm(total=test_data.max_iter, position=0, leave=True) as pbar:
+        for it in tqdm(range(test_data.max_iter), position = 0, leave=True):
+            #randomly sample the latent space
+            samples, labels = test_data.sample(iteration = it, _give_labels = True)
+            samples = samples.to(device)
+            # forward + backward + optimize
+            output_batch = classifier(samples)
+            for i in range(test_data.batch_size):
+                outputs_data[it*test_data.batch_size + i] = output_batch[i]
+    probs_data = torch.softmax(outputs_data, 1)
+    argmax_Y = torch.max(probs_data, 1)[1].view(-1,1)
+    return argmax_Y
+
+'''
+plot_classified function
+    Info
+        -plots three mass spectra - signal, background and the full mass spectrum
+        -useful to plot the classification made by a classifier
+        -requires classes and masses and they must be in same order
+    Reference
+        -Parameters:
+            *masses: (array-like) list of all masses of Lambdas in a dataset
+            *classes: (array-like) list of 1s and 0s - 1 means yes lambda, 0 means no lambda
+            *label: (string) combined histogram label
+            *save: (bool, default = False) tells function if it should save an image of the plot to directory
+            *save_loc: (string) tells function where to save plot image to
+            *figsize: (tuple of ints) size of whole subplot canvas
+            *bins: (int, default = 100) number of bins for each histogram
+        -Effect:
+            *plots signal, background, and combined histograms, and saves the plot if desired
+'''
+
+def plot_classified(masses, classes, label = "none",save = False, save_loc = "plots/default.jpeg", figsize = (18,4), bins = 100):
+    num_total = int(classes.size()[0])
+    num_signal = int(classes.sum())
+    signal = np.zeros(num_signal)
+    bg = np.zeros(num_total-num_signal)
+    bg_count, signal_count = 0, 0
+    for i in range(num_total):
+        if classes[i]:
+            signal[signal_count] = masses[i]
+            signal_count+= 1
+        else:
+            bg[bg_count] = masses[i]
+            bg_count += 1
+    histos, (h1,h2,h3) = plt.subplots(1,3, figsize = figsize)
+    h1.hist(signal, bins = bins, label = "signal", color = "b")
+    h2.hist(bg, bins = bins, label = "background", color = "xkcd:orange")
+    if(label != "none"):
+        h3.hist(training_data_MC.mass, bins = bins, label = label)
+    else:
+        h3.hist(training_data_MC.mass, bins = bins)
+
+    leg = histos.legend(title = "Key")
+    histos.show()
+    if(save):
+        histos.savefig(save_loc)

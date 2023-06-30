@@ -270,6 +270,7 @@ def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,7
     for i in range(num_epochs):
         with tqdm(total=in_data.max_iter, position=0, leave=True) as pbar:
             for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
+                model.train()
                 optimizer.zero_grad()
                 #randomly sample the latent space
                 samples = in_data.sample(iteration = it)
@@ -285,6 +286,7 @@ def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,7
                     if(loss < 1000):
                         loss_hist = np.append(loss_hist, loss.to('cpu').data.numpy())
                 if(val):
+                    model.eval()
                     val_samples = val_data.sample(iteration = it)
                     val_samples = val_samples.to(device)
                     val_loss = model.forward_kld(val_samples)
@@ -666,8 +668,8 @@ def plot_classified(masses, classes, label = "none",save = False, save_loc = "pl
     h1.hist(signal, bins = bins, label = "signal", color = "b")
     h2.hist(bg, bins = bins, label = "background", color = "xkcd:orange")
     if(label != "none"):
-        h3.hist(mass, bins = bins, label = label)
-    else:es
+        h3.hist(masses, bins = bins, label = label)
+    else:
         h3.hist(masses, bins = bins)
 
     leg = histos.legend(title = "Key")

@@ -10,3 +10,4 @@
 .ipynb_checkpoints/
 *.jpeg
 UMAP_PLOTS.ipynb
+models/

@@ -191,16 +191,16 @@ get_masked_affine function
         Returns:
             -list of coupling layers
 '''
-def get_masked_affine(num_layers = 32):
+def get_masked_affine(num_layers = 32, latent_dim = 71):
     #mask
-    b = torch.ones(71)
+    b = torch.ones(latent_dim)
     for i in range(b.size()[0]):
         if i % 2 == 0:
             b[i] = 0
     masked_affine_flows = []
     for i in range(num_layers):
-        s = nf.nets.MLP([71, 142, 142, 71])
-        t = nf.nets.MLP([71, 142, 142, 71])
+        s = nf.nets.MLP([latent_dim, latent_dim * 2, latent_dim * 2, latent_dim])
+        t = nf.nets.MLP([latent_dim, latent_dim * 2, latent_dim * 2, latent_dim])
         if i % 2 == 0:
             masked_affine_flows += [nf.flows.MaskedAffineFlow(b, t, s)]
         else:
@@ -223,12 +223,15 @@ transform function
         -Returns:
             *data_tensor: (torch.tensor) transformed tensor with same size as in_data.data
 '''
-def transform(in_data, model, reverse = True):
+def transform(in_data, model, reverse = True, distorted = False):
     data_tensor = torch.zeros_like(in_data.data)
     model.eval()
     with torch.no_grad():
         for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
-            test_samples = in_data.sample(iteration = it)
+            if(distorted):
+                test_samples = in_data.sample(iteration = it, distorted = True)
+            else:
+                test_samples = in_data.sample(iteration = it)
             test_samples = test_samples.to(device)
             if(reverse):
                 output_batch = model.inverse(test_samples)
@@ -257,7 +260,7 @@ train function
             *full_val_loss_hist: (list of floats) same as full_loss_hist but for validation
 '''
 
-def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1, compact_num = 20):
+def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1, compact_num = 20, distorted = False):
     # train the MC model
     if(val):
         val_data.set_batch_size(int(np.floor(val_data.num_events / in_data.max_iter)))
@@ -273,7 +276,10 @@ def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,7
                 model.train()
                 optimizer.zero_grad()
                 #randomly sample the latent space
-                samples = in_data.sample(iteration = it)
+                if(distorted):
+                    samples = in_data.sample(iteration = it, distorted = True)
+                else:
+                    samples = in_data.sample(iteration = it)
                 samples = samples.to(device)
                 loss = model.forward_kld(samples)
                 # Do backprop and optimizer step
@@ -357,13 +363,16 @@ test function
             *Prints average loss
 '''        
 
-def test(in_data, model, data_type = "none"):
+def test(in_data, model, data_type = "none", distorted = False):
     model.eval()
     test_loss = 0
     counted_batches = 0
     with torch.no_grad():
         for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
-            test_samples = in_data.sample(iteration = it)
+            if(distorted):
+                test_samples = in_data.sample(iteration = it, distorted = True)
+            else:
+                test_samples = in_data.sample(iteration = it)
             test_samples = test_samples.to(device)
             new_loss = model.forward_kld(test_samples)
             if(not math.isnan(new_loss)):
@@ -399,6 +408,32 @@ def plot_9_histos(data_tensor, color,bins = 150, description = "none"):
         hlist[i].hist(data_tensor[:,i], bins=150,color=color);
     plt.show()
 
+    
+'''
+plot_6_histos function
+    Info:
+        -Plots 6 different 1D histograms of different each dimension from GAN_Input
+    Reference:
+        -Parameters:
+            *data_tensor: (torch.tensor) data to plot
+            *color: (string) color to make the histograms
+            *bins: (int) number of bins to use
+            *description: (string) super title of subplots
+        -Effect:
+            *Plots 9 different histograms in 3x3 grid
+'''            
+
+def plot_6_histos(data_tensor, color,bins = 150, description = "none"):
+    histos, ((h11,h12,h13),(h21,h22,h23)) = plt.subplots(3,2, figsize = (10,7))
+    if description == "none":
+        histos.suptitle("Several 1D Histos")
+    else:
+        histos.suptitle(f"Several 1D Histos {description}")
+    hlist = [h11,h12,h13,h21,h22,h23]
+    for i in range(len(hlist)):
+        hlist[i].hist(data_tensor[:,i], bins=150,color=color);
+    plt.show()
+    
 '''
 plot_UMAP_sidebyside function
     Info:
@@ -676,3 +711,5 @@ def plot_classified(masses, classes, label = "none",save = False, save_loc = "pl
     histos.show()
     if(save):
         histos.savefig(save_loc)
+        
+        

@@ -85,11 +85,21 @@ Latent_data Class
                         ~samples: tensor of samples
 '''
 class Latent_data:
-    def __init__(self, in_tensor,labels):
+    def __init__(self, in_tensor,labels, sidebands = False):
         self.data = in_tensor
+        self.labels = labels
         self.num_events = in_tensor.size()[0]
         self.latent_size = in_tensor.size()[1]
-        self.labels = labels
+    def get_sidebands(self, cut = 1.14):
+        for i in range(len(self.data)):
+            if(self.mass[i] < 1.14):
+                self.data[i] = (9999 * torch.ones_like(self.data[i]))
+                self.labels[i] = (9999 * torch.ones_like(self.labels[i]))
+                self.mass[i] = (9999 * torch.ones_like(self.mass[i]))
+        self.data = self.data[self.data[:,0] != 9999]
+        self.labels = self.labels[self.labels[:,0] != 9999]
+        self.mass = self.mass[self.mass[:] != 9999]
+        self.num_events = self.data.size()[0]
     def set_batch_size(self,batch_size):
         self.batch_size = batch_size
         self.max_iter = int(self.num_events / self.batch_size)
@@ -191,7 +201,7 @@ get_masked_affine function
         Returns:
             -list of coupling layers
 '''
-def get_masked_affine(num_layers = 32, latent_dim = 71):
+def get_masked_affine(num_layers = 32, latent_dim = 71, hidden_dim = 142):
     #mask
     b = torch.ones(latent_dim)
     for i in range(b.size()[0]):
@@ -199,8 +209,8 @@ def get_masked_affine(num_layers = 32, latent_dim = 71):
             b[i] = 0
     masked_affine_flows = []
     for i in range(num_layers):
-        s = nf.nets.MLP([latent_dim, latent_dim * 2, latent_dim * 2, latent_dim])
-        t = nf.nets.MLP([latent_dim, latent_dim * 2, latent_dim * 2, latent_dim])
+        s = nf.nets.MLP([latent_dim, hidden_dim, hidden_dim, latent_dim])
+        t = nf.nets.MLP([latent_dim, hidden_dim,hidden_dim, latent_dim])
         if i % 2 == 0:
             masked_affine_flows += [nf.flows.MaskedAffineFlow(b, t, s)]
         else:

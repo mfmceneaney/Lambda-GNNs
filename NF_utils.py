@@ -249,6 +249,19 @@ def transform(in_data, model, reverse = True, distorted = False):
                 output_batch = model.forward(test_samples)
             for i in range(in_data.batch_size):
                 data_tensor[it*in_data.batch_size + i] = output_batch[i]
+        if((in_data.max_iter * in_data.batch_size) != in_data.num_events):
+            num_missing = in_data.num_events - (in_data.max_iter * in_data.batch_size)
+            if(distorted):
+                end_samples = in_data.distorted_features[(in_data.max_iter * in_data.batch_size):]
+            else:
+                end_samples = in_data.data[(in_data.max_iter * in_data.batch_size):]
+            end_samples = end_samples.to(device)
+            if(reverse):
+                end_batch = model.inverse(end_samples)
+            else:
+                end_batch = model.forward(end_samples)
+            for i in range(len(end_batch)):
+                data_tensor[(in_data.max_iter * in_data.batch_size) + i] = end_batch[i]
     return data_tensor
 
 '''

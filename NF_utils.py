@@ -201,12 +201,16 @@ get_masked_affine function
         Returns:
             -list of coupling layers
 '''
-def get_masked_affine(num_layers = 32, latent_dim = 71, hidden_dim = 142):
+def get_masked_affine(num_layers = 32, latent_dim = 71, hidden_dim = 142, alternate_mask = True):
     #mask
     b = torch.ones(latent_dim)
     for i in range(b.size()[0]):
-        if i % 2 == 0:
-            b[i] = 0
+        if(alternate_mask):
+            if i % 2 == 0:
+                b[i] = 0
+        else:
+            if i // (latent_dim * 0.5) == 0:
+                b[i] = 0
     masked_affine_flows = []
     for i in range(num_layers):
         s = nf.nets.MLP([latent_dim, hidden_dim, hidden_dim, latent_dim])
@@ -264,6 +268,37 @@ def transform(in_data, model, reverse = True, distorted = False):
                 data_tensor[(in_data.max_iter * in_data.batch_size) + i] = end_batch[i]
     return data_tensor
 
+def transform_double(in_data, model, reverse = True, distorted = False,latent_size = 12):
+    data_tensor = torch.zeros(in_data.num_events,latent_size)
+    model.eval()
+    with torch.no_grad():
+        for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
+            if(distorted):
+                test_samples = in_data.sample(iteration = it, distorted = True).to(device)
+            else:
+                test_samples = in_data.sample(iteration = it).to(device)
+#             test_samples = test_samples.to(device)
+            if(reverse):
+                output_batch = model.inverse(test_samples)
+            else:
+                output_batch = model.forward(test_samples)
+            for i in range(in_data.batch_size):
+                data_tensor[it*in_data.batch_size + i] = output_batch[i]
+        if((in_data.max_iter * in_data.batch_size) != in_data.num_events):
+            num_missing = in_data.num_events - (in_data.max_iter * in_data.batch_size)
+            if(distorted):
+                end_samples = in_data.distorted_features[(in_data.max_iter * in_data.batch_size):,:latent_size]
+            else:
+                end_samples = in_data.data[(in_data.max_iter * in_data.batch_size):,:latent_size]
+            end_samples = end_samples.to(device)
+            if(reverse):
+                end_batch = model.inverse(end_samples)
+            else:
+                end_batch = model.forward(end_samples)
+            for i in range(len(end_batch)):
+                data_tensor[(in_data.max_iter * in_data.batch_size) + i] = end_batch[i]
+    return data_tensor
+
 '''
 train function
     Info:
@@ -283,7 +318,7 @@ train function
             *full_val_loss_hist: (list of floats) same as full_loss_hist but for validation
 '''
 
-def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1, compact_num = 20, distorted = False):
+def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1, compact_num = 20, distorted = False, show_progress = True, lr = 5e-4):
     # train the MC model
     if(val):
         val_data.set_batch_size(int(np.floor(val_data.num_events / in_data.max_iter)))
@@ -292,10 +327,10 @@ def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,7
     model.train()
     loss_hist = np.array([])
     full_loss_hist = np.array([])
-    optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
     for i in range(num_epochs):
         with tqdm(total=in_data.max_iter, position=0, leave=True) as pbar:
-            for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
+            for it in range(in_data.max_iter):
                 model.train()
                 optimizer.zero_grad()
                 #randomly sample the latent space
@@ -323,6 +358,8 @@ def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,7
                         full_val_loss_hist = np.append(val_loss_hist, val_loss.to('cpu').data.numpy())
                         if(val_loss < 1000):
                             val_loss_hist = np.append(val_loss_hist, val_loss.to('cpu').data.numpy())
+                if(show_progress):
+                    pbar.update(1)
                             
     #
     # This section of code exists solely to create more readable histograms
@@ -386,7 +423,7 @@ test function
             *Prints average loss
 '''        
 
-def test(in_data, model, data_type = "none", distorted = False):
+def test(in_data, model, data_type = "none", distorted = False, return_loss = False):
     model.eval()
     test_loss = 0
     counted_batches = 0
@@ -405,6 +442,8 @@ def test(in_data, model, data_type = "none", distorted = False):
             print(f"average loss: {test_loss/counted_batches}")
         else:
             print(f"{data_type} average loss: {test_loss/counted_batches}")
+    if(return_loss):
+        return test_loss/counted_batches
 
 '''
 plot_9_histos function
@@ -456,6 +495,21 @@ def plot_6_histos(data_tensor, color,bins = 150, description = "none"):
     for i in range(len(hlist)):
         hlist[i].hist(data_tensor[:,i], bins=150,color=color);
     plt.show()
+    
+def plot_12_histos(data_tensor, color,bins = 150, description = "none", save = False, save_loc = "plots/img.jpeg", xlim = True):
+    histos, ((h11,h12,h13,h14,h15,h16),(h21,h22,h23,h24,h25,h26)) = plt.subplots(2,6, figsize = (18,7))
+    if description == "none":
+        histos.suptitle("Several 1D Histos")
+    else:
+        histos.suptitle(f"Several 1D Histos {description}")
+    hlist = [h11,h12,h13,h14,h15,h16,h21,h22,h23,h24,h25,h26]
+    for i in range(len(hlist)):
+        hlist[i].hist(data_tensor[:,i], bins=150,color=color, density = True);
+        if(xlim):
+            hlist[i].set_xlim([-1,1])
+    plt.show()
+    if(save):
+        histos.savefig(save_loc)
     
 '''
 plot_UMAP_sidebyside function

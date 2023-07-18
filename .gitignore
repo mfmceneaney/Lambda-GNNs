@@ -11,3 +11,6 @@
 *.jpeg
 UMAP_PLOTS.ipynb
 models/
+
+Slurm/Output/
+Slurm/Error/

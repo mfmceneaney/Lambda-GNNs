@@ -6,8 +6,14 @@ parser = argparse.ArgumentParser(description='PyTorch NF for Lambda events')
 
 parser.add_argument('--Date', type=str, default="Undated",
                         help='Date to include in file names')
+parser.add_argument('--num_epochs', type=int, default="2",
+                        help='Number of epochs to train over')
+parser.add_argument('--Distortion', type=float, default="0.2",
+                        help='Range of distortion to add to MC')
 args = parser.parse_args()
 Date = args.Date
+distort_value = args.Distortion
+nepochs = args.num_epochs
 
 import normflows as nf
 from normflows import flows
@@ -55,8 +61,6 @@ from GAN_utils import GAN_Input, GAN_Input_double
 from numpy.random import default_rng
 rng = default_rng()
 
-distort_value = 0.15
-nepochs = 2
 
 #location for smearing matrix to be saved to
 lambda_prefix = "/hpc/group/vossenlab/rck32/Lambda-GNNs/plots/hyperparameter_optimization"
@@ -64,14 +68,16 @@ string_distort_value_dot = str(distort_value)
 string_distort_value = string_distort_value_dot.replace(".","_")
 
 import optuna
+from optuna.trial import TrialState
 
 
 def objective(trial):
-    hidden_dim = trial.suggest_int("hidden_dim",20,100)
-    half_num_layers = trial.suggest_int("half_num_layers", 5,50)
+    hidden_dim = trial.suggest_int("hidden_dim",20,200)
+    half_num_layers = trial.suggest_int("half_num_layers", 5,70)
     num_layers = 2 * half_num_layers
-    lr = trial.suggest_float("learning rate", 1e-5,1e-3)
+    lr = trial.suggest_float("learning rate", 1e-6,5e-3)
     file_prefix = lambda_prefix + "/loss_plots/num_layers_" + str(num_layers) + "_hiddendim_" + str(hidden_dim) + "_lr_" + str(lr)
+    model_prefix = lambda_prefix + "/models/num_layers_" + str(num_layers) + "_hiddendim_" + str(hidden_dim) + "_lr_" + str(lr)
 
     '''                                              '''
     '''     SETTING UP LATENT SPACE REPRESENTATION   '''
@@ -101,8 +107,12 @@ def objective(trial):
 
     # TRAINING MC
     MC_loss, MC_full_loss = train(inputs, MC_model, distorted = False, num_epochs = nepochs,compact_num = 10, show_progress = False,lr = lr)
-    plot_loss(MC_loss, label = "MC loss",save = True,save_loc = file_prefix + ".jpeg")
-    MC_model.save(file_prefix + ".pth")
+    try:
+        plot_loss(MC_loss, label = "MC loss",save = True,save_loc = file_prefix + ".jpeg")
+    except Exception as e:
+        print(f"Caught exception: {e}\nContinuing...")
+        raise optuna.exceptions.TrialPruned()
+    MC_model.save(model_prefix + ".pth")
     # SETTING UP DATA MODEL
 
 #     masked_affine_flows_train_distort = get_masked_affine(latent_dim = 12, hidden_dim = hidden_dim, num_layers = num_layers,alternate_mask = False)
@@ -165,12 +175,14 @@ def objective(trial):
 #     his3.set_xlim(-1,1)
 
 study = optuna.create_study(direction = 'minimize')
-study.optimize(objective, n_trials = 5)
+study.optimize(objective, n_trials = 100, timeout=14400)
 
+pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
 complete_trials = study.get_trials(deepcopy = False, states = [TrialState.COMPLETE])
 
 print("Study statistics: ")
 print("  Number of finished trials: ", len(study.trials))
+print("  Number of pruned trials: ", len(pruned_trials))
 print("  Number of complete trials: ", len(complete_trials))
 
 print("Best trial:")

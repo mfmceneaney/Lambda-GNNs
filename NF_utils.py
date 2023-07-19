@@ -85,11 +85,14 @@ Latent_data Class
                         ~samples: tensor of samples
 '''
 class Latent_data:
-    def __init__(self, in_tensor,labels, sidebands = False):
+    def __init__(self, in_tensor,labels, sidebands = False, num_sample_features = 71, double = False):
         self.data = in_tensor
+        if(double):
+            self.double()
         self.labels = labels
-        self.num_events = in_tensor.size()[0]
-        self.latent_size = in_tensor.size()[1]
+        self.num_events = self.data.size()[0]
+        self.latent_size = self.data.size()[1]
+        self.num_sample_features = num_sample_features
     def get_sidebands(self, cut = 1.14):
         for i in range(len(self.data)):
             if(self.mass[i] < 1.14):
@@ -134,6 +137,8 @@ class Latent_data:
         for index in range(len(indices)):
             samples[index] = self.data[indices[index]]
         return samples
+    def double(self):
+        self.data = torch.cat([self.data,self.data],dim=1)
 
 '''
 create_latent_data Function
@@ -154,7 +159,7 @@ create_latent_data Function
         Returns:
             (Latent_data) object with dataset loaded, preconfigured with batch size
 '''
-def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossenlab/mfm45/.dgl/", split = 0.8, max_events = 140000, num_samples = 250, mode = "default",shuffle = True):
+def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossenlab/mfm45/.dgl/", split = 0.8, max_events = 140000, num_samples = 250, mode = "default",shuffle = True, double = False):
     val_split = (1 - split) / 2
     if(mode == "test"):
         data_range = range(int(split*max_events),int((val_split + split)*max_events))
@@ -178,7 +183,7 @@ def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossen
     dgl_batch = dgl_batch.to(device)
     labels = labels.to(device)
     latent = extractor.get_latent_repr(dgl_batch).detach().cpu()
-    latent_obj = Latent_data(latent,labels)
+    latent_obj = Latent_data(latent,labels, double = double)
     latent_obj.set_batch_size(num_samples)
     latent_obj.set_mass(mass)
     return latent_obj
@@ -728,7 +733,7 @@ test_classifier_data function
             *argmax_Y: (tensor) predicted labels according to classifier
 '''
     
-def test_classifier_data(test_data, classifier):
+def test_classifier_data(test_data, classifier, ret_probs = False):
     outputs_data = torch.empty(test_data.num_events,2)
     #Converting normalized DATA to classifier output
     with tqdm(total=test_data.max_iter, position=0, leave=True) as pbar:
@@ -741,8 +746,11 @@ def test_classifier_data(test_data, classifier):
             for i in range(test_data.batch_size):
                 outputs_data[it*test_data.batch_size + i] = output_batch[i]
     probs_data = torch.softmax(outputs_data, 1)
+    if(ret_probs):
+        return probs_data
     argmax_Y = torch.max(probs_data, 1)[1].view(-1,1)
     return argmax_Y
+
 
 '''
 plot_classified function

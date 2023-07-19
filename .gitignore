@@ -14,3 +14,6 @@ models/
 
 Slurm/Output/
 Slurm/Error/
+Slurm/run*
+plots/
+Slurm/Shells/shells*

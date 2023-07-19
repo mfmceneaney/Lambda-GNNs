@@ -8,10 +8,52 @@ import torch.nn as nn
 
 '''
 GAN Classes and Functions
+(spoiler, some of these aren't actually used for a GAN and instead NF, but originally they were for a GAN, so...)
 '''
 
 '''
 GAN_Input Class
+    
+    Info:
+        Purpose:
+            -Object for handling fixed dimensions of physics data with neural nets
+            -Made for GANs, but now used for NF
+        Benefits:
+            -Collects all needed attributes of data into one object
+            -Implements necessary functions:
+                -sampling
+                -distorting inputs
+                -shuffling inputs
+                -normalizing input data (maybe?)
+    Reference:
+        Constructor:
+            -Parameters:
+                *GraphDataset: object from utils.py that contains graphs (nodes and edges), originally used for GNN
+                *num_features: (int) size of the tensors that correspond to individual events (all data)
+                *num_sample_features: (int) size of NN input dimension; number of features that you want to sample
+                *batch_size: (int) number of events per batch when training/testing
+                *distortion_range: (tuple of floats) range to randomly sample distorting values from
+                *distort: (bool) tells the object if it should distort the features and create new distorted_features attribute
+                *shuffle: (bool) tells object if it should shuffle the indices of the events (this is recommended as otherwise all signal are first then bg after)
+                *sidebands: (bool) tells object if it should cut out any event that is part of the signal peak area in mass spectrum (useful for training when MC/data diff)
+                *sideband_cut: (float) mass value used for cut; only events where the lambda mass is greater than the this value are kept
+            -Methods:
+                *__init__: initializes attributes that are available at construction time
+                *set_batch_size: sets the batch size and calculates number of batches
+                    +parameters: 
+                        ~batch_size: (int) number of samples per training iteration
+                *sample: calls proper sampling function depending on random parameter
+                    +parameters: 
+                        ~iteration: (int) current iteration of training/testing; 
+                        ~random: (bool) conduct random or fixed order sampling
+                *sample_fixed: takes the next `batch_size` events from the dataset and returns them in a tensor
+                    +parameters:
+                        ~iteration: (int) see sample reference
+                    +returns:
+                        ~samples: tensor of samples
+                *sample_random: uses np random generation to return a random event from the dataset
+                    +returns:
+                        ~samples: tensor of samples
 '''
 
 class GAN_Input():

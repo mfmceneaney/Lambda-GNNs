@@ -14,15 +14,17 @@ args = parser.parse_args()
 Date = args.Date
 distort_value = args.Distortion
 nepochs = args.num_epochs
-
+hidden_dim = 79
+num_layers = 94
+lr = 0.00015
 
 
 #location for smearing matrix to be saved to
 lambda_prefix = "/hpc/group/vossenlab/rck32/Lambda-GNNs"
 string_distort_value_dot = str(distort_value)
 string_distort_value = string_distort_value_dot.replace(".","_")
-smearing_save_loc = lambda_prefix + "/plots/NF_double/distorted_MC_vs_fullpass_" + Date + "_" + string_distort_value + ".jpeg"
-
+smearing_save_loc = lambda_prefix + "/plots/NF_double_smear/" + Date + "/distort" + string_distort_value + ".jpeg"
+smearing_save_loc_path = lambda_prefix + "/plots/NF_double_smear/" + Date
 import normflows as nf
 from normflows import flows
 ## Standard libraries
@@ -89,31 +91,57 @@ MC_Graphs = GraphDataset(prefix+MCdataset)
 
 inputs = GAN_Input_double(MC_Graphs,distortion_range = (-distort_value,distort_value), distort = True, num_features = 20, num_sample_features = 12)
 
-print("Distorted pTs:\n")
-print(inputs.distorted_features[:20,0])
+'''
+FINISH THIS CODE HERE
+'''
+loss_path_date = lambda_prefix + "/plots/NF_loss/Double_" + Date
+loss_path_MC = lambda_prefix + "/plots/NF_loss/Double_" + Date + "/MC"
+loss_path_distort = lambda_prefix + "/plots/NF_loss/Double_" + Date + "/distort"
+model_path_MC = lambda_prefix + "/models/NF_MC/MC_" + Date + "_double_features"
+model_path_distort = lambda_prefix + "/models/NF_distort/distort_" + Date + "_double_features"
+
+dir_list = [loss_path_date,smearing_save_loc_path,loss_path_MC,loss_path_distort,model_path_MC,model_path_distort]
+for i in range(len(dir_list)):
+    if(not os.path.isdir(dir_list[i])):
+        os.mkdir(dir_list[i])
+
 # SETTING UP MC MODEL
 
-masked_affine_flows_train_MC = get_masked_affine(latent_dim = 12,hidden_dim = 48,num_layers = 60, alternate_mask = False)
+#Uncomment to train new model:
+# masked_affine_flows_train_MC = get_masked_affine(latent_dim = 12,hidden_dim = hidden_dim,num_layers = num_layers, alternate_mask = False)
+# distribution_MC = nf.distributions.DiagGaussian(inputs.num_sample_features, trainable = False)
+# masked_affine_model_MC = nf.NormalizingFlow(q0=distribution_MC, flows=masked_affine_flows_train_MC)
+# MC_model = masked_affine_model_MC.to(device)
+
+# # TRAINING MC
+# MC_loss, MC_full_loss = train(inputs, MC_model, distorted = False, num_epochs = nepochs,compact_num = 10, show_progress = False,lr = lr)
+# plot_loss(MC_loss, label = "MC loss",save = True,save_loc = lambda_prefix + "/plots/NF_loss/Double_" + Date + "/MC/distort_" + string_distort_value + ".jpeg")
+# MC_model.save(lambda_prefix + "/models/NF_MC/MC_" + Date + "_double_features/MC_" + string_distort_value + ".pth")
+
+#Using model we trained earlier:
+masked_affine_flows_train_MC = get_masked_affine(latent_dim = 12,hidden_dim = hidden_dim,num_layers = num_layers, alternate_mask = False)
 distribution_MC = nf.distributions.DiagGaussian(inputs.num_sample_features, trainable = False)
 masked_affine_model_MC = nf.NormalizingFlow(q0=distribution_MC, flows=masked_affine_flows_train_MC)
+masked_affine_model_MC.load("models/NF_MC/MC_2023_07_19_double_features/MC_2023_07_19_double_features_0_1.pth")
 MC_model = masked_affine_model_MC.to(device)
 
-# TRAINING MC
-MC_loss, MC_full_loss = train(inputs, MC_model, distorted = False, num_epochs = nepochs,compact_num = 10, show_progress = False,lr = 1e-4)
-plot_loss(MC_loss, label = "MC loss",save = True,save_loc = lambda_prefix + "/plots/NF_loss/MC_" + Date + "_double_features_" + string_distort_value + ".jpeg")
-MC_model.save(lambda_prefix + "/models/NF_MC/MC_" + Date + "_double_features_" + string_distort_value + ".pth")
-# SETTING UP DATA MODEL
+# # SETTING UP DATA MODEL
+# masked_affine_flows_train_distort = get_masked_affine(latent_dim = 12, hidden_dim = hidden_dim, num_layers = num_layers,alternate_mask = False)
+# distribution_distort = nf.distributions.DiagGaussian(inputs.num_sample_features, trainable = False)
+# masked_affine_model_distort = nf.NormalizingFlow(q0=distribution_distort, flows=masked_affine_flows_train_distort)
+# distort_model = masked_affine_model_distort.to(device)
 
-masked_affine_flows_train_distort = get_masked_affine(latent_dim = 12, hidden_dim = 48, num_layers = 60,alternate_mask = False)
+# # TRAINING Distorted
+# distort_loss, distort_full_loss = train(inputs, distort_model, distorted = True, num_epochs = nepochs, compact_num = 10, show_progress = False,lr = lr)
+# plot_loss(distort_loss, label = "distort loss",save = True,save_loc = lambda_prefix + "/plots/NF_loss/Double_" + Date + "/distort/distort" + string_distort_value + ".jpeg")
+# distort_model.save(lambda_prefix + "/models/NF_distort/distort_" + Date + "_double_features/distort_" + string_distort_value + ".pth")
+
+#Using model we trained earlier:
+masked_affine_flows_train_distort = get_masked_affine(latent_dim = 12,hidden_dim = hidden_dim,num_layers = num_layers, alternate_mask = False)
 distribution_distort = nf.distributions.DiagGaussian(inputs.num_sample_features, trainable = False)
 masked_affine_model_distort = nf.NormalizingFlow(q0=distribution_distort, flows=masked_affine_flows_train_distort)
+masked_affine_model_distort.load(lambda_prefix + "/models/NF_distort/distort_" + Date + "_double_features/distort_" + string_distort_value + ".pth")
 distort_model = masked_affine_model_distort.to(device)
-
-# TRAINING Distorted
-distort_loss, distort_full_loss = train(inputs, distort_model, distorted = True, num_epochs = nepochs, compact_num = 10, show_progress = False,lr = 1e-4)
-plot_loss(distort_loss, label = "distort loss",save = True,save_loc = lambda_prefix + "/plots/NF_loss/distort_" + Date + "_double_features_" + string_distort_value + ".jpeg")
-
-distort_model.save(lambda_prefix + "/models/NF_distort/distort_" + Date + "_double_features_" + string_distort_value + ".pth")
 
 # Testing MC
 test(inputs, MC_model, data_type = "MC")
@@ -142,24 +170,41 @@ plot_distorted_data = plot_distorted_data[plot_distorted_data[:,0] != 99999]
 plot_train_data = plot_train_data[plot_train_data[:,0] != 99999]
 
 
-fig, ((ax11,ax12,ax13),(ax21,ax22,ax23),(his1,his2,his3)) = plt.subplots(3,3,figsize = (12,12))
-axlist = [ax11,ax12,ax13,ax21,ax22,ax23]
+fig, ((ax11,ax12,ax13),(ax21,ax22,ax23),(ax31,ax32,ax33),(his1,his2,his3)) = plt.subplots(4,3,figsize = (12,15))
+axlist = [ax21,ax22,ax23,ax31,ax32]
 names = ["Proton pT", "Proton phi", "Proton theta", "Pion pT", "Pion phi", "Pion theta"]
 fig.suptitle("Distorted vs fullpass with +/-" + string_distort_value_dot + " distortion_fix")
-for i in range(6):
-    x1 = torch.Tensor.numpy(plot_distorted_data[:,i])
-    y1 = torch.Tensor.numpy(plot_fpd[:,i])
-    axlist[i].hist2d(x1,y1,bins = 200, cmap = plt.cm.jet)
-    axlist[i].set_xlabel(names[i])
-ax11.set_xlim(-1,1)
-ax11.set_ylim(-1,1)
+x1 = torch.Tensor.numpy(plot_distorted_data[:,0])
+y1 = torch.Tensor.numpy(plot_fpd[:,0])
+ax11.hist2d(x1,y1,bins = 200, cmap = plt.cm.jet)
+ax11.set_xlabel("full pass vs distorted")
+
+x2 = torch.Tensor.numpy(plot_distorted_data[:,0])
+y2 = torch.Tensor.numpy(plot_train_data[:,0])
+ax12.hist2d(x2,y2,bins = 200, cmap = plt.cm.jet)
+ax12.set_xlabel("MC vs distorted")
+
+x3 = torch.Tensor.numpy(plot_train_data[:,0])
+y3 = torch.Tensor.numpy(plot_fpd[:,0])
+ax13.hist2d(x3,y3,bins = 200, cmap = plt.cm.jet)
+ax13.set_xlabel("full pass vs MC")
+for i in range(5):
+    x4 = torch.Tensor.numpy(plot_distorted_data[:,i+1])
+    y4 = torch.Tensor.numpy(plot_fpd[:,i+1])
+    axlist[i].hist2d(x4,y4,bins = 200, cmap = plt.cm.jet)
+    axlist[i].set_xlabel(names[i+1])
+# ax11.set_xlim(-1,1)
+# ax11.set_ylim(-1,1)
 his1.hist(inputs.data[:,0], bins = 100,color = 'r')
 his1.set_xlabel("MC")
-his1.set_xlim(-1,1)
+if((max(inputs.data[:,0]) > 10) or (min(inputs.data[:,0]) < -10)):
+    his1.set_xlim(-1,1)
 his2.hist(inputs.distorted_features[:,0], bins = 100,color = 'b')
 his2.set_xlabel("distorted")
-his2.set_xlim(-1,1)
+if((max(inputs.data[:,0]) > 10) or (min(inputs.data[:,0]) < -10)):
+    his2.set_xlim(-1,1)
 his3.hist(full_pass_distorted[:,0], bins = 100,color = 'g')
 his3.set_xlabel("fullpass")
-his3.set_xlim(-1,1)
+if((max(inputs.data[:,0]) > 10) or (min(inputs.data[:,0]) < -10)):
+    his3.set_xlim(-1,1)
 fig.savefig(smearing_save_loc)

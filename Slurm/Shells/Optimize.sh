@@ -3,8 +3,8 @@
 #SBATCH --account=vossenlab
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=32G
-#SBATCH --output=/hpc/group/vossenlab/rck32/Lambda-GNNs/Slurm/Output/Optimization/July_18_study_0.out
-#SBATCH --error=/hpc/group/vossenlab/rck32/Lambda-GNNs/Slurm/Error/Optimization/July_18_study_0.error
+#SBATCH --output=/hpc/group/vossenlab/rck32/Lambda-GNNs/Slurm/Output/Optimization/July_19_study_0.out
+#SBATCH --error=/hpc/group/vossenlab/rck32/Lambda-GNNs/Slurm/Error/Optimization/July_19_study_0.error
 #SBATCH --mail-user=rck32@duke.edu
 #SBATCH --mail-type=END
 #SBATCH --mail-type=BEGIN

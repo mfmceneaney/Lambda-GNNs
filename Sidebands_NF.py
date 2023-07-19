@@ -278,13 +278,13 @@ for i in range(9):
 # plt.show()
 plt.savefig(smearing_path)
 
-classifier = NFClassifier(num_layers = 10).to(device)
+classifier = NFClassifier(num_layers = 10, input_size = 142, hidden_dim = 400).to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(classifier.parameters(), lr=5e-4, weight_decay=1e-5)
 num_epochs_classifier = 15
 
-loss_hist, val_loss_hist = train_classifier(training_data_MC, classifier, criterion, optimizer, val = True, val_data = val_data_MC, num_epochs = num_epochs_classifier,input_size = 142, hidden_dim = 400)
+loss_hist, val_loss_hist = train_classifier(training_data_MC, classifier, criterion, optimizer, val = True, val_data = val_data_MC, num_epochs = num_epochs_classifier)
 
 plot_loss(loss_hist, plot_val =True, val_loss_hist = val_loss_hist)
 

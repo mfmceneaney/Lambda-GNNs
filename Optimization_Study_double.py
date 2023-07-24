@@ -72,10 +72,10 @@ from optuna.trial import TrialState
 
 
 def objective(trial):
-    hidden_dim = trial.suggest_int("hidden_dim",20,200)
-    half_num_layers = trial.suggest_int("half_num_layers", 5,70)
+    hidden_dim = trial.suggest_int("hidden_dim",50,300)
+    half_num_layers = trial.suggest_int("half_num_layers", 20,100)
     num_layers = 2 * half_num_layers
-    lr = trial.suggest_float("learning rate", 1e-6,5e-3)
+    lr = 5e-4
     file_prefix = lambda_prefix + "/loss_plots/num_layers_" + str(num_layers) + "_hiddendim_" + str(hidden_dim) + "_lr_" + str(lr)
     model_prefix = lambda_prefix + "/models/num_layers_" + str(num_layers) + "_hiddendim_" + str(hidden_dim) + "_lr_" + str(lr)
 
@@ -127,7 +127,12 @@ def objective(trial):
 #     distort_model.save(lambda_prefix + "/models/NF_distort/distort_" + Date + "_double_features_" + string_distort_value + ".pth")
 
     # Testing MC
-    return test(inputs, MC_model, data_type = "MC", return_loss = True)
+    try:
+        output = test(inputs, MC_model, data_type = "MC", return_loss = True)
+        return output
+    except Exception as e:
+        print(f"Caught exception: {e}\nContinuing...")
+        raise optuna.exceptions.TrialPruned()
 #     # Testing DATA
 #     test(inputs, distort_model, data_type = "MC distorted", distorted = True)
 
@@ -175,7 +180,7 @@ def objective(trial):
 #     his3.set_xlim(-1,1)
 
 study = optuna.create_study(direction = 'minimize')
-study.optimize(objective, n_trials = 100, timeout=14400)
+study.optimize(objective, n_trials = 100, timeout=21600)
 
 pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
 complete_trials = study.get_trials(deepcopy = False, states = [TrialState.COMPLETE])

@@ -159,7 +159,7 @@ create_latent_data Function
         Returns:
             (Latent_data) object with dataset loaded, preconfigured with batch size
 '''
-def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossenlab/mfm45/.dgl/", split = 0.8, max_events = 140000, num_samples = 250, mode = "default",shuffle = True, double = False):
+def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossenlab/mfm45/.dgl/", split = 0.8, max_events = 140000, num_samples = 250, mode = "default",shuffle = True, double = False, sidebands = False):
     val_split = (1 - split) / 2
     if(mode == "test"):
         data_range = range(int(split*max_events),int((val_split + split)*max_events))
@@ -186,6 +186,9 @@ def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossen
     latent_obj = Latent_data(latent,labels, double = double)
     latent_obj.set_batch_size(num_samples)
     latent_obj.set_mass(mass)
+    if(sidebands):
+        latent_obj.get_sidebands()
+        latent_obj.set_batch_size(num_samples)
     return latent_obj
     
 '''
@@ -206,7 +209,7 @@ get_masked_affine function
         Returns:
             -list of coupling layers
 '''
-def get_masked_affine(num_layers = 32, latent_dim = 71, hidden_dim = 142, alternate_mask = True):
+def get_masked_affine(num_layers = 32, latent_dim = 71, hidden_dim = 142, alternate_mask = True, switch_mask = True):
     #mask
     b = torch.ones(latent_dim)
     for i in range(b.size()[0]):
@@ -220,8 +223,11 @@ def get_masked_affine(num_layers = 32, latent_dim = 71, hidden_dim = 142, altern
     for i in range(num_layers):
         s = nf.nets.MLP([latent_dim, hidden_dim, hidden_dim, latent_dim])
         t = nf.nets.MLP([latent_dim, hidden_dim,hidden_dim, latent_dim])
-        if i % 2 == 0:
-            masked_affine_flows += [nf.flows.MaskedAffineFlow(b, t, s)]
+        if(switch_mask):
+            if i % 2 == 0:
+                masked_affine_flows += [nf.flows.MaskedAffineFlow(b, t, s)]
+            else:
+                masked_affine_flows += [nf.flows.MaskedAffineFlow(1 - b, t, s)]
         else:
             masked_affine_flows += [nf.flows.MaskedAffineFlow(1 - b, t, s)]
     return masked_affine_flows
@@ -242,22 +248,25 @@ transform function
         -Returns:
             *data_tensor: (torch.tensor) transformed tensor with same size as in_data.data
 '''
-def transform(in_data, model, reverse = True, distorted = False):
+def transform(in_data, model, reverse = True, distorted = False, show_progress = True):
     data_tensor = torch.zeros_like(in_data.data)
     model.eval()
     with torch.no_grad():
-        for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
-            if(distorted):
-                test_samples = in_data.sample(iteration = it, distorted = True)
-            else:
-                test_samples = in_data.sample(iteration = it)
-            test_samples = test_samples.to(device)
-            if(reverse):
-                output_batch = model.inverse(test_samples)
-            else:
-                output_batch = model.forward(test_samples)
-            for i in range(in_data.batch_size):
-                data_tensor[it*in_data.batch_size + i] = output_batch[i]
+        with tqdm(total=in_data.max_iter, position=0, leave=True) as pbar:
+            for it in range(in_data.max_iter):
+                if(distorted):
+                    test_samples = in_data.sample(iteration = it, distorted = True)
+                else:
+                    test_samples = in_data.sample(iteration = it)
+                test_samples = test_samples.to(device)
+                if(reverse):
+                    output_batch = model.inverse(test_samples)
+                else:
+                    output_batch = model.forward(test_samples)
+                for i in range(in_data.batch_size):
+                    data_tensor[it*in_data.batch_size + i] = output_batch[i]
+                if(show_progress):
+                    pbar.update(1)
         if((in_data.max_iter * in_data.batch_size) != in_data.num_events):
             num_missing = in_data.num_events - (in_data.max_iter * in_data.batch_size)
             if(distorted):
@@ -273,22 +282,25 @@ def transform(in_data, model, reverse = True, distorted = False):
                 data_tensor[(in_data.max_iter * in_data.batch_size) + i] = end_batch[i]
     return data_tensor
 
-def transform_double(in_data, model, reverse = True, distorted = False,latent_size = 12):
+def transform_double(in_data, model, reverse = True, distorted = False,latent_size = 12,show_progress = True):
     data_tensor = torch.zeros(in_data.num_events,latent_size)
     model.eval()
     with torch.no_grad():
-        for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
-            if(distorted):
-                test_samples = in_data.sample(iteration = it, distorted = True).to(device)
-            else:
-                test_samples = in_data.sample(iteration = it).to(device)
-#             test_samples = test_samples.to(device)
-            if(reverse):
-                output_batch = model.inverse(test_samples)
-            else:
-                output_batch = model.forward(test_samples)
-            for i in range(in_data.batch_size):
-                data_tensor[it*in_data.batch_size + i] = output_batch[i]
+        with tqdm(total=in_data.max_iter, position=0, leave=True) as pbar:
+            for it in range(in_data.max_iter):
+                if(distorted):
+                    test_samples = in_data.sample(iteration = it, distorted = True).to(device)
+                else:
+                    test_samples = in_data.sample(iteration = it).to(device)
+    #             test_samples = test_samples.to(device)
+                if(reverse):
+                    output_batch = model.inverse(test_samples)
+                else:
+                    output_batch = model.forward(test_samples)
+                for i in range(in_data.batch_size):
+                    data_tensor[it*in_data.batch_size + i] = output_batch[i]
+                if(show_progress):
+                    pbar.update(1)
         if((in_data.max_iter * in_data.batch_size) != in_data.num_events):
             num_missing = in_data.num_events - (in_data.max_iter * in_data.batch_size)
             if(distorted):
@@ -428,21 +440,24 @@ test function
             *Prints average loss
 '''        
 
-def test(in_data, model, data_type = "none", distorted = False, return_loss = False):
+def test(in_data, model, data_type = "none", distorted = False, return_loss = False,show_progress = True):
     model.eval()
     test_loss = 0
     counted_batches = 0
     with torch.no_grad():
-        for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
-            if(distorted):
-                test_samples = in_data.sample(iteration = it, distorted = True)
-            else:
-                test_samples = in_data.sample(iteration = it)
-            test_samples = test_samples.to(device)
-            new_loss = model.forward_kld(test_samples)
-            if(not math.isnan(new_loss)):
-                test_loss += new_loss
-                counted_batches += 1
+        with tqdm(total=in_data.max_iter, position=0, leave=True) as pbar:
+            for it in range(in_data.max_iter):
+                if(distorted):
+                    test_samples = in_data.sample(iteration = it, distorted = True)
+                else:
+                    test_samples = in_data.sample(iteration = it)
+                test_samples = test_samples.to(device)
+                new_loss = model.forward_kld(test_samples)
+                if(not math.isnan(new_loss)):
+                    test_loss += new_loss
+                    counted_batches += 1
+                if(show_progress):
+                    pbar.update(1)
         if(data_type == "none"):
             print(f"average loss: {test_loss/counted_batches}")
         else:
@@ -656,7 +671,7 @@ class NFClassifier(nn.Module):
 train_classifier function
 '''
 
-def train_classifier(train_data, classifier, criterion, optimizer, val = True, val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1):
+def train_classifier(train_data, classifier, criterion, optimizer, val = True, val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1,show_progress = True):
     loss_hist = np.array([])
     if(val):
         val_data.set_batch_size(int(np.floor(val_data.num_events / train_data.max_iter)))
@@ -665,7 +680,7 @@ def train_classifier(train_data, classifier, criterion, optimizer, val = True, v
         epoch_hist = np.array([])
         val_epoch_hist = np.array([])
         with tqdm(total=train_data.max_iter, position=0, leave=True) as pbar:
-            for it in tqdm(range(train_data.max_iter), position = 0, leave=True):
+            for it in range(train_data.max_iter):
                 optimizer.zero_grad()
                 #randomly sample the latent space
                 samples, labels = train_data.sample(iteration = it, _give_labels = True)
@@ -689,6 +704,8 @@ def train_classifier(train_data, classifier, criterion, optimizer, val = True, v
                     val_outputs = classifier(val_samples)
                     val_loss = criterion(val_outputs, val_labels[:,0])
                     val_epoch_hist = np.append(val_epoch_hist, val_loss.to('cpu').data.numpy())
+                if(show_progress):
+                    pbar.update(1)
         loss_hist = np.append(loss_hist, epoch_hist.mean())
         if(val):
             val_loss_hist = np.append(val_loss_hist, val_epoch_hist.mean())
@@ -703,10 +720,10 @@ def train_classifier(train_data, classifier, criterion, optimizer, val = True, v
 test_classifier_MC function
 
 '''
-def test_classifier_MC(test_data, classifier):
+def test_classifier_MC(test_data, classifier,show_progress = True):
     outputs = torch.empty(test_data.num_events,2)    
     with tqdm(total=test_data.max_iter, position=0, leave=True) as pbar:
-        for it in tqdm(range(test_data.max_iter), position = 0, leave=True):
+        for it in range(test_data.max_iter):
             #randomly sample the latent space
             samples, labels = test_data.sample(iteration = it, _give_labels = True)
             samples = samples.to(device)
@@ -714,6 +731,8 @@ def test_classifier_MC(test_data, classifier):
             output_batch = classifier(samples)
             for i in range(test_data.batch_size):
                 outputs[it*test_data.batch_size + i] = output_batch[i]
+            if(show_progress):
+                pbar.update(1)
     test_Y     = test_data.labels.clone().detach().float().view(-1, 1).to("cpu")
     probs_Y = torch.softmax(outputs, 1)
     argmax_Y = torch.max(probs_Y, 1)[1].view(-1,1)
@@ -733,11 +752,11 @@ test_classifier_data function
             *argmax_Y: (tensor) predicted labels according to classifier
 '''
     
-def test_classifier_data(test_data, classifier, ret_probs = False):
+def test_classifier_data(test_data, classifier, ret_probs = False,show_progress = True):
     outputs_data = torch.empty(test_data.num_events,2)
     #Converting normalized DATA to classifier output
     with tqdm(total=test_data.max_iter, position=0, leave=True) as pbar:
-        for it in tqdm(range(test_data.max_iter), position = 0, leave=True):
+        for it in range(test_data.max_iter):
             #randomly sample the latent space
             samples, labels = test_data.sample(iteration = it, _give_labels = True)
             samples = samples.to(device)
@@ -745,6 +764,8 @@ def test_classifier_data(test_data, classifier, ret_probs = False):
             output_batch = classifier(samples)
             for i in range(test_data.batch_size):
                 outputs_data[it*test_data.batch_size + i] = output_batch[i]
+            if(show_progress):
+                pbar.update(1)
     probs_data = torch.softmax(outputs_data, 1)
     if(ret_probs):
         return probs_data

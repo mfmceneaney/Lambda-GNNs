@@ -2,14 +2,22 @@
 
 # Define the range of values from 0.1 to 1.2
 start_value=0.1
-end_value=2
-increment=0.2
-epochs=2
+end_value=1
+increment=0.1
+epochs=6
 
 shift="False"
 # extra_info="_shifting_"
-extra_info="_multi_mode"
-multimodal="True"
+extra_info="_double_single_shift_"
+
+# multimodal="--multimodal"
+multimodal="--no-multimodal"
+
+alternate_mask="--alternate_mask"
+#alternate_mask="--no-alternate_mask"
+
+shift="--shift"
+# shift="--no-shift"
 
 # Create a folder based on the current date (YYYY-MM-DD format)
 current_date=$(date +"%b_%d")
@@ -35,18 +43,18 @@ fi
 if [ ! -d "$shell_folder" ]; then
   mkdir "$shell_folder"
 fi
-partition="vossenlab-gpu"
+# partition="vossenlab-gpu"
 i=0
 # Loop through the values and create the SLURM scripts
 for value in $(seq $start_value $increment $end_value); do
   # Define the SLURM script filename based on the value
   value_string=$(printf "%.1f" $value | tr '.' '_')
   script_filename="${extra_info}distort_${value_string}.sh"
-#   if (( i <= 2 )); then
-#     partition="vossenlab-gpu"
-#   else
-#     partition="scavenger-gpu"
-#   fi
+  if (( i <= 2 )); then
+    partition="vossenlab-gpu"
+  else
+    partition="scavenger-gpu"
+  fi
   # Create the SLURM script
   cat <<EOF > "${shell_folder}/$script_filename"
 #!/bin/bash
@@ -63,7 +71,7 @@ for value in $(seq $start_value $increment $end_value); do
 cd /hpc/group/vossenlab/rck32/Lambda-GNNs
 source /hpc/group/vossenlab/rck32/miniconda3/bin/activate
 source activate /hpc/group/vossenlab/rck32/miniconda3/envs/venv
-/hpc/group/vossenlab/rck32/miniconda3/envs/venv/bin/python3 Distortion_NF.py --Date $current_date --num_epochs $epochs --Sigma $value --shift $shift --shift_val $value --extra_info $extra_info --multimodal $multimodal
+/hpc/group/vossenlab/rck32/miniconda3/envs/venv/bin/python3 Distortion_NF.py --Date $current_date --num_epochs $epochs --Sigma $value $shift --shift_val $value --extra_info $extra_info $multimodal $alternate_mask
 EOF
 
   # Make the SLURM script executable

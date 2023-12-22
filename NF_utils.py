@@ -53,6 +53,11 @@ from numpy.random import default_rng
 rng = default_rng()
 
 '''
+NOTE: Classes/functions that end in "fast" were taken from the Jul 5th commit to the rowan branch as that commit seems to produce much better FOMpure plots... trying to see what is different
+'''
+
+
+'''
 Latent_data Class
     
     Info:
@@ -140,6 +145,47 @@ class Latent_data:
     def double(self):
         self.data = torch.cat([self.data,self.data],dim=1)
 
+        
+class Latent_fast:
+    def __init__(self, in_tensor,labels):
+        self.data = in_tensor
+        self.num_events = in_tensor.size()[0]
+        self.latent_size = in_tensor.size()[1]
+        self.labels = labels
+    def set_batch_size(self,batch_size):
+        self.batch_size = batch_size
+        self.max_iter = int(self.num_events / self.batch_size)
+    def set_mass(self, mass):
+        self.mass = mass
+    def sample(self,iteration = 0, random = False, _give_labels = False):
+        if(random):
+            return self.sample_random(give_labels = _give_labels)
+        else:
+            return self.sample_fixed(iteration,give_labels = _give_labels)
+    def sample_fixed(self,iteration,give_labels = False):
+        #0 index iterations - the "first" iteration is with iteration = 0
+        # Calculate the first index we want to take from training data (rest of data is directly after)
+        begin = iteration * self.batch_size
+        # initialize
+        samples = torch.zeros(self.batch_size, self.latent_size)
+        labels = torch.zeros(self.batch_size, 1)
+#         print(f"labels max (inside sample_fixed): {labels.max()}")
+        #loop over consecutive tensors, save to return tensor
+        if(give_labels):
+            for i in range(self.batch_size):
+                samples[i] = self.data[begin + i]
+                labels[i] = self.labels[begin+i]
+            return samples,labels
+        else:
+            for i in range(self.batch_size):
+                samples[i] = self.data[begin + i]
+            return samples
+    def sample_random(self,labels = False):
+        indices = rng.integers(low=0, high=self.num_events, size=self.batch_size)
+        samples = torch.zeros(self.batch_size,self.latent_size)
+        for index in range(len(indices)):
+            samples[index] = self.data[indices[index]]
+        return samples
 '''
 create_latent_data Function
 
@@ -159,7 +205,42 @@ create_latent_data Function
         Returns:
             (Latent_data) object with dataset loaded, preconfigured with batch size
 '''
-def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossenlab/mfm45/.dgl/", split = 0.8, max_events = 140000, num_samples = 250, mode = "default",shuffle = True, double = False, sidebands = False):
+def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossenlab/mfm45/.dgl/", split = 0.8, max_events = 140000, num_samples = 250, mode = "default",shuffle = True, double = False, sidebands = False, in_dataset = None, given_dataset = False):
+    val_split = (1 - split) / 2
+    if(mode == "test"):
+        data_range = range(int(split*max_events),int((val_split + split)*max_events))
+    elif(mode == "train"):
+        data_range = range(0, int(split*max_events))
+    elif(mode == "val"):
+        data_range = range(int((val_split + split)*max_events),max_events)
+    elif(mode == "default"):
+        print(f"No mode given, defaulting to training\n")
+        data_range = range(0, int(split*max_events))
+    else:
+        raise Exception("Invalid mode: {mode}\nPlease use either \"train,\" or \"test\" ", mode)
+    if(not given_dataset):
+        dataset = GraphDataset(prefix+dataset_directory)
+        dataset.load()
+    else:
+        dataset = in_dataset
+    if(shuffle):
+        dataset.shuffle()
+    dataset = Subset(dataset,data_range)
+    dgl_batch = dgl.batch(dataset.dataset.graphs[dataset.indices.start:dataset.indices.stop])
+    labels = dataset.dataset.labels[dataset.indices.start:dataset.indices.stop,0].clone().detach().float().view(-1, 1)
+    mass = dataset.dataset.labels[dataset.indices.start:dataset.indices.stop,1].clone().detach().float()
+    dgl_batch = dgl_batch.to(device)
+    labels = labels.to(device)
+    latent = extractor.get_latent_repr(dgl_batch).detach().cpu()
+    latent_obj = Latent_data(latent,labels, double = double)
+    latent_obj.set_batch_size(num_samples)
+    latent_obj.set_mass(mass)
+    if(sidebands):
+        latent_obj.get_sidebands()
+        latent_obj.set_batch_size(num_samples)
+    return latent_obj
+
+def create_latent_fast(dataset_directory, extractor, prefix = "/hpc/group/vossenlab/mfm45/.dgl/", split = 0.8, max_events = 140000, num_samples = 250, mode = "default",shuffle = True):
     val_split = (1 - split) / 2
     if(mode == "test"):
         data_range = range(int(split*max_events),int((val_split + split)*max_events))
@@ -183,12 +264,9 @@ def create_latent_data(dataset_directory, extractor, prefix = "/hpc/group/vossen
     dgl_batch = dgl_batch.to(device)
     labels = labels.to(device)
     latent = extractor.get_latent_repr(dgl_batch).detach().cpu()
-    latent_obj = Latent_data(latent,labels, double = double)
+    latent_obj = Latent_data(latent,labels)
     latent_obj.set_batch_size(num_samples)
     latent_obj.set_mass(mass)
-    if(sidebands):
-        latent_obj.get_sidebands()
-        latent_obj.set_batch_size(num_samples)
     return latent_obj
     
 '''
@@ -209,9 +287,12 @@ get_masked_affine function
         Returns:
             -list of coupling layers
 '''
-def get_masked_affine(num_layers = 32, latent_dim = 71, hidden_dim = 142, alternate_mask = True, switch_mask = True):
+def get_masked_affine(num_layers = 32, latent_dim = 71, hidden_dim = None, alternate_mask = True, switch_mask = True):
+    if(hidden_dim == None):
+        hidden_dim = latent_dim * 2
     #mask
     b = torch.ones(latent_dim)
+#     print(f"len of b: {len(b)}")
     for i in range(b.size()[0]):
         if(alternate_mask):
             if i % 2 == 0:
@@ -352,6 +433,7 @@ def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,7
                 optimizer.zero_grad()
                 #randomly sample the latent space
                 if(distorted):
+                    print(f"entered distorted")
                     samples = in_data.sample(iteration = it, distorted = True)
                 else:
                     samples = in_data.sample(iteration = it)
@@ -404,6 +486,71 @@ def train(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,7
     else:
         return compact_hist, loss_hist
 
+def train_fast(in_data, model, val = False,val_data = Latent_data(torch.empty(10000,71), torch.empty(10000,71)), num_epochs = 1, compact_num = 20):
+    # train the MC model
+    if(val):
+        val_data.set_batch_size(int(np.floor(val_data.num_events / in_data.max_iter)))
+        val_loss_hist = np.array([])
+        full_val_loss_hist = np.array([])
+    model.train()
+    loss_hist = np.array([])
+    full_loss_hist = np.array([])
+    optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, weight_decay=1e-5)
+    for i in range(num_epochs):
+        with tqdm(total=in_data.max_iter, position=0, leave=True) as pbar:
+            for it in tqdm(range(in_data.max_iter), position = 0, leave=True):
+                model.train()
+                optimizer.zero_grad()
+                #randomly sample the latent space
+                samples = in_data.sample(iteration = it)
+                samples = samples.to(device)
+                loss = model.forward_kld(samples)
+                # Do backprop and optimizer step
+                if ~(torch.isnan(loss) | torch.isinf(loss)):
+                    loss.backward()
+                    optimizer.step()
+                # Log loss
+                if~(torch.isnan(loss)):
+                    full_loss_hist = np.append(loss_hist, loss.to('cpu').data.numpy())
+                    if(loss < 1000):
+                        loss_hist = np.append(loss_hist, loss.to('cpu').data.numpy())
+                if(val):
+                    model.eval()
+                    val_samples = val_data.sample(iteration = it)
+                    val_samples = val_samples.to(device)
+                    val_loss = model.forward_kld(val_samples)
+                    if~(torch.isnan(val_loss)):
+                        full_val_loss_hist = np.append(val_loss_hist, val_loss.to('cpu').data.numpy())
+                        if(val_loss < 1000):
+                            val_loss_hist = np.append(val_loss_hist, val_loss.to('cpu').data.numpy())
+                            
+    #
+    # This section of code exists solely to create more readable histograms
+    #
+    running_ttl = 0
+    compact_hist = np.array([])
+    j = 0
+    for i in range(loss_hist.size):
+        if(j != (i // compact_num)):
+            compact_hist = np.append(compact_hist,running_ttl / compact_num)
+            running_ttl = 0
+        j = i // compact_num
+        running_ttl += loss_hist[i]
+    if(val):
+        running_ttl_val = 0
+        compact_hist_val = np.array([])
+        j = 0
+        for i in range(val_loss_hist.size):
+            if(j != (i // compact_num)):
+                compact_hist_val = np.append(compact_hist_val,running_ttl_val / compact_num)
+                running_ttl_val = 0
+            j = i // compact_num
+            running_ttl_val += val_loss_hist[i]
+        return compact_hist, compact_hist_val, full_loss_hist, full_val_loss_hist
+    else:
+        return compact_hist, loss_hist
+
+    
 '''
 plot_loss function
     Info:
@@ -479,7 +626,7 @@ plot_9_histos function
             *Plots 9 different histograms in 3x3 grid
 '''            
 
-def plot_9_histos(data_tensor, color,bins = 150, description = "none"):
+def plot_9_histos(data_tensor, color,bins = 150, description = "none", save = False, save_loc = "plots/9_histos.jpeg"):
     histos, ((h11,h12,h13),(h21,h22,h23),(h31,h32,h33)) = plt.subplots(3,3, figsize = (10,10))
     if description == "none":
         histos.suptitle("Several 1D Histos")
@@ -489,6 +636,8 @@ def plot_9_histos(data_tensor, color,bins = 150, description = "none"):
     for i in range(len(hlist)):
         hlist[i].hist(data_tensor[:,i], bins=150,color=color);
     plt.show()
+    if save:
+        histos.savefig(save_loc)
 
     
 '''
@@ -715,6 +864,34 @@ def train_classifier(train_data, classifier, criterion, optimizer, val = True, v
         return loss_hist, val_loss_hist
     else:
         return loss_hist
+    
+'''
+get_classification_probs function
+    Info: 
+        -calculates probabilities using classifier on test_data
+        -used for placing a cut on the classifier output rather than using argmax
+    Reference:
+            -Parameters:
+                *test_data: (torch.tensor) data to classify
+                *classifier: (NFClassifier) classifier (network)
+            -Output:
+                *probs_data: probabilities that each event was signal or bg 
+'''
+def get_classification_probs(test_data, classifier):
+    outputs_data = torch.empty(test_data.num_events,2)
+    #Converting normalized DATA to classifier output
+    with tqdm(total=test_data.max_iter, position=0, leave=True) as pbar:
+        for it in tqdm(range(test_data.max_iter), position = 0, leave=True):
+            #randomly sample the latent space
+            samples, labels = test_data.sample(iteration = it, _give_labels = True)
+            samples = samples.to(device)
+            # forward + backward + optimize
+            output_batch = classifier(samples)
+            for i in range(test_data.batch_size):
+                outputs_data[it*test_data.batch_size + i] = output_batch[i]
+    probs_data = torch.softmax(outputs_data, 1)
+    return probs_data
+    
     
 '''
 test_classifier_MC function

@@ -39,8 +39,8 @@ def main():
                         help='Number of epochs to train (default: 100)')
     parser.add_argument('--lr', type=float, nargs=2, default=[1e-5,1e-2],
                         help='Learning rate range (default: 1e-5 1e-2)')
-    parser.add_argument('--lr_c', type=float, nargs=2, default=[1e-5,1e-2],
-                        help='Classifier learning rate range (default: 1e-5 1e-2)')
+    parser.add_argument('--lr_c', type=float, nargs=2, default=[1e-2,1e-2],
+                        help='Classifier learning rate range (default: 1e-2 1e-2)')
     parser.add_argument('--lr_d', type=float, nargs=2, default=[1e-5,1e-2],
                         help='Discriminator learning rate range (default: 1e-5 1e-2)')
     parser.add_argument('--alpha', type=float, nargs=2, default=[1,100],

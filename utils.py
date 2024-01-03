@@ -643,13 +643,14 @@ def train_dagnn(
         del x #NOTE: CLEANUP STEP: DEBUGGING
         
         # Step the domain discriminator on training and domain data
-        dom_y = discriminator(h.detach())
+        dom_y = discriminator(h.detach()) #NOTE: Detach ensures you only propagate gradients to the discriminator, not the model.
         dom_labels = torch.cat([torch.ones(nLabelled,dtype=torch.long), torch.zeros(nUnlabelled,dtype=torch.long)], dim=0).to(device) #NOTE: Make sure domain label lengths match actual batches at the end.
         # dom_labels = torch.cat([torch.cat([torch.ones(nLabelled,1),torch.zeros(nLabelled,1)],dim=1),torch.cat([torch.zeros(nUnlabelled,1),torch.ones(nUnlabelled,1)],dim=1)],dim=0).to(device)
         dom_loss = dom_criterion(dom_y, dom_labels) #NOTE: Using activation function like nn.Sigmoid() at end of model is important since the predictions need to be in [0,1].
-        discriminator.zero_grad()
+        
         dom_loss.backward()
         discriminator_optimizer.step()
+        discriminator.zero_grad()
         
         # Step the classifier on training data
         train_y = classifier(h[:nLabelled]) #NOTE: Only train on labelled (i.e., training) data, not domain data.
@@ -662,17 +663,17 @@ def train_dagnn(
         # coeff = alpha(engine.state.epoch, max_epochs)#OLD: 7/25/22
         tot_loss = train_loss - alpha * dom_loss
         
+        # Step total loss
+        tot_loss.backward()
+        
+        # Step classifier and model optimizer (backwards)
+        # classifier_optimizer.step()
+        model_optimizer.step() #NOTE: IMPORTANT! This should wrap both classifier and feature extractor parameters.
+
         # Zero gradients in all parts of model
         model.zero_grad()
         classifier.zero_grad()
         discriminator.zero_grad()
-        
-        # Step total loss
-        tot_loss.backward()
-        
-        # Step classifier and model optimizers (backwards)
-        classifier_optimizer.step()
-        model_optimizer.step()
 
         # Apply softmax and get accuracy on training data
         train_true_y = train_labels.clone().detach().float().view(-1, 1) #NOTE: Labels for cross entropy loss have to be (N) shaped if input is (N,C) shaped.
@@ -1721,8 +1722,8 @@ def optimization_study_dagnn(
         #     discriminator = DataParallel(discriminator)
 
         # Create optimizers
-        model_optimizer = optim.Adam(model.parameters(), lr=lr)
-        classifier_optimizer = optim.Adam(classifier.parameters(), lr=lr_c)
+        model_optimizer = optim.Adam(list(model.parameters())+list(classifier.parameters()), lr=lr)
+        classifier_optimizer = optim.Adam(classifier.parameters(), lr=lr_c)#NOTE: This is now extraneous.
         discriminator_optimizer = optim.Adam(discriminator.parameters(), lr=lr_d)
 
         # Create schedulers

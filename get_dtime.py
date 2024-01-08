@@ -53,7 +53,7 @@ try:
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.hist(datetime_difference_seconds,bins=100,alpha=0.5)
-    f.savefig('dtimes_10_10_22.png')#NOTE: Save figure to png file
+    f.savefig('dtimes_10_10_22.pdf')#NOTE: Save figure to pdf file
 
     # Close the cursor
     cursor.close()

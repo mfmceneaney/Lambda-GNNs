@@ -542,7 +542,7 @@ plt.ylim(0, 1)
 # make legend and show plot
 plt.legend(loc='lower left', frameon=False)
 plt.show()
-f.savefig("DGL_AUC.png")
+f.savefig("DGL_AUC.pdf")
 
 ##########################################################
 # Plot loss and accuracy as a fn of epoch
@@ -563,7 +563,7 @@ plt.xlabel('Epoch')
 plt.ylabel('Metrics')
 plt.legend(loc='lower left', frameon=False)
 plt.show()
-f.savefig("GIN_training_metrics.png")
+f.savefig("GIN_training_metrics.pdf")
 
 ##########################################################
 # # Plot decisions
@@ -582,4 +582,4 @@ f.savefig("GIN_training_metrics.png")
 # plt.xlabel('output')
 # plt.ylabel('counts')
 # plt.show()
-# f.savefig("DGL_decisions.png")
+# f.savefig("DGL_decisions.pdf")

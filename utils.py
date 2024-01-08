@@ -496,7 +496,7 @@ def train(
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend()
-    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     # Create training/validation accuracy plot
     f = plt.figure()
@@ -507,7 +507,7 @@ def train(
     plt.legend(loc='best', frameon=False)
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
-    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     return logs
 
@@ -957,7 +957,7 @@ def train_dagnn(
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend()
-    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'training_metrics_loss_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     # Create training/validation accuracy plot
     f = plt.figure()
@@ -970,7 +970,7 @@ def train_dagnn(
     plt.legend(loc='best', frameon=False)
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
-    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'training_metrics_acc_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     return logs
     
@@ -1101,7 +1101,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     # Plot mass decisions separated into signal/background
     bins = 100
@@ -1113,7 +1113,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'test_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'test_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     # Plot correct mass decisions separated into signal/background
     bins = 100
@@ -1125,7 +1125,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'test_metrics_mass_true_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'test_metrics_mass_true_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     # Plot incorrect mass decisions separated into signal/background
     bins = 100
@@ -1137,7 +1137,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'test_metrics_mass_false_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'test_metrics_mass_false_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     # Plot MC-Matched distributions
     bins = 100
@@ -1149,7 +1149,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'mc_matched_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'mc_matched_mass_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     # Plot MC-Matched distributions for NN-identified signal
     bins = 100
@@ -1161,7 +1161,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'mc_matched_nn_sig_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'mc_matched_nn_sig_mass_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     # Plot MC-Matched distributions for NN-identified background
     bins = 100
@@ -1173,7 +1173,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'mc_matched_nn_bg_mass_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     #-----#
     #NOTE: ADDED DEBUGGING
@@ -1266,7 +1266,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
         # plt.legend(loc='upper left', frameon=False)
         # plt.ylabel('Counts')
         # plt.xlabel('Invariant mass (GeV)')
-        # f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_sig_mass_"+datetime.datetime.now().strftime("%F")+'.png'))
+        # f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_sig_mass_"+datetime.datetime.now().strftime("%F")+'.pdf'))
 
 
         #NOTE: NOW LOOK AT NN-IDENTIFIED BG
@@ -1301,7 +1301,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
         # plt.legend(loc='upper left', frameon=False)
         # plt.ylabel('Counts')
         # plt.xlabel('Invariant mass (GeV)')
-        # f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_bg_mass_"+datetime.datetime.now().strftime("%F")+'.png'))
+        # f.savefig(os.path.join(log_dir,f"TEST_ppa_pid_MC_{my_pid__:.0f}__mc_matched_nn_bg_mass_"+datetime.datetime.now().strftime("%F")+'.pdf'))
 
         if fill_option:
             x_multi_sig_true.append(mass_sig_true_from_target[~mass_sig_true_from_target.mask]) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
@@ -1367,7 +1367,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_full.png"))
+    f.savefig(os.path.join(log_dir,"parent_decomposition_full.pdf"))
 
     # SIG BOTH TRUE/FALSE
     # Make a multiple-histogram of data-sets with different length.
@@ -1378,7 +1378,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_sig.png"))
+    f.savefig(os.path.join(log_dir,"parent_decomposition_sig.pdf"))
     
     # BG BOTH TRUE/FALSE
     # Make a multiple-histogram of data-sets with different length.
@@ -1389,7 +1389,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_bg.png"))
+    f.savefig(os.path.join(log_dir,"parent_decomposition_bg.pdf"))
 
     # JUST SIG TRUE
     # Make a multiple-histogram of data-sets with different length.
@@ -1400,7 +1400,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_sig_true.png"))
+    f.savefig(os.path.join(log_dir,"parent_decomposition_sig_true.pdf"))
 
     # JUST SIG FALSE
     # Make a multiple-histogram of data-sets with different length.
@@ -1411,7 +1411,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_sig_false.png"))
+    f.savefig(os.path.join(log_dir,"parent_decomposition_sig_false.pdf"))
 
     # JUST BG TRUE
     # Make a multiple-histogram of data-sets with different length.
@@ -1422,7 +1422,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_bg_true.png"))
+    f.savefig(os.path.join(log_dir,"parent_decomposition_bg_true.pdf"))
 
     # JUST BG FALSE
     # Make a multiple-histogram of data-sets with different length.
@@ -1433,7 +1433,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,"parent_decomposition_bg_false.png"))
+    f.savefig(os.path.join(log_dir,"parent_decomposition_bg_false.pdf"))
 
     #-----#
 
@@ -1469,7 +1469,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
 
     # make legend and show plot
     plt.legend([model.name+f": AUC={auc:.4f} acc={test_acc:.4f}"],loc='lower left', frameon=False)
-    f.savefig(os.path.join(log_dir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+".png"))
+    f.savefig(os.path.join(log_dir,model.name+"_ROC_"+datetime.datetime.now().strftime("%F")+".pdf"))
 
     ##########################################################
     # Plot testing decisions
@@ -1483,7 +1483,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
     plt.xlabel('output')
     plt.ylabel('counts')
-    f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+".png"))
+    f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+".pdf"))
 
     return (auc,test_acc) #NOTE: Needed for optimization_study() below.
 
@@ -1956,7 +1956,7 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     plt.legend(loc='upper left', frameon=False)
     plt.ylabel('Counts')
     plt.xlabel('Invariant mass (GeV)')
-    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.png'))
+    f.savefig(os.path.join(log_dir,'eval_metrics_mass_'+datetime.datetime.now().strftime("%F")+'.pdf'))
 
     ##########################################################
     # Plot testing decisions
@@ -1970,7 +1970,7 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
     plt.xlabel('output')
     plt.ylabel('counts')
-    f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+".png"))
+    f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+".pdf"))
 
 #------------------------- Classes -------------------------#
 

@@ -103,7 +103,7 @@ def myscript(
             plt.semilogx(x, y, markeropt, markersize=markersize) #NOTE: bo stands for blue o marker
         else:
             plt.plot(x, y, markeropt, markersize=markersize) #NOTE: bo stands for blue o marker
-        f.savefig('{}_vs_{}.png'.format(xparam,yparam))#NOTE: Save figure to png file
+        f.savefig('{}_vs_{}.pdf'.format(xparam,yparam))#NOTE: Save figure to pdf file
 
         # Close the cursor
         cursor.close()

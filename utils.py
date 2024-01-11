@@ -999,6 +999,11 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     model.eval()
     model      = model.to(device)
 
+    try:
+        model.models = [m.to(device) for m in model.models]
+    except Exception as e:
+        print(e)
+
     test_bg    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop]) #TODO: Figure out nicer way to use subset
     test_Y     = test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,0].clone().detach().float().view(-1, 1) #IMPORTANT: keep .view() here
     test_bg    = test_bg.to(device)
@@ -1839,6 +1844,10 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
 
     model.eval()
     model      = model.to(device)
+    try:
+        model.models = [m.to(device) for m in model.models]
+    except Exception as e:
+        print(e)
     test_bg    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop])#TODO: Figure out nicer way to use subset
     test_bg    = test_bg.to(device)
     prediction = model(test_bg)

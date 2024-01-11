@@ -1723,7 +1723,7 @@ def optimization_study_dagnn(
 
         # Create optimizers
         model_optimizer = optim.Adam(list(model.parameters())+list(classifier.parameters()), lr=lr)
-        classifier_optimizer = optim.Adam(classifier.parameters(), lr=lr_c)#NOTE: This is now extraneous.
+        classifier_optimizer = None #optim.Adam(classifier.parameters(), lr=lr_c)#NOTE: This is now extraneous.
         discriminator_optimizer = optim.Adam(discriminator.parameters(), lr=lr_d)
 
         # Create schedulers

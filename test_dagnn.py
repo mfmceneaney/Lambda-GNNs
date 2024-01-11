@@ -169,7 +169,7 @@ def main():
     #         args.gpooling, nkinematics, args.hfdim, args.nfmlp).to(device)
 
     model_optimizer = optim.Adam(list(model.parameters())+list(classifier.parameters()), lr=args.lr)
-    classifier_optimizer = optim.Adam(classifier.parameters(), lr=args.lr_c)#NOTE: This is now extraneous.
+    classifier_optimizer = None #optim.Adam(classifier.parameters(), lr=args.lr_c)#NOTE: This is now extraneous.
     discriminator_optimizer = optim.Adam(discriminator.parameters(), lr=args.lr_d)
     print("DEBUGGING: CREATED OPTIMIZERS")
 

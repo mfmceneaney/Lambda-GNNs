@@ -1827,7 +1827,7 @@ def optimization_study_dagnn(
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="logs/",verbose=True,batch_size=batch_size,
+def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="logs/",verbose=True,batch_size=32,
         drop_last=False,
         shuffle=False,
         pin_memory=True,

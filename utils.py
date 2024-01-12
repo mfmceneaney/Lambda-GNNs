@@ -1858,7 +1858,7 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
 
     # Create Dataloader
     dl = GraphDataLoader(
-        dataset,
+        test_dataset,
         batch_size=batch_size,
         drop_last=drop_last,
         shuffle=shuffle,

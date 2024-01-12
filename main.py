@@ -55,7 +55,7 @@ def main():
                         help='Number of hidden dimensions in model (default: 64)')
     parser.add_argument('--dropout', type=float, default=0.8,
                         help='Dropout rate for final layer (default: 0.8)')
-    parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "mean"],
+    parser.add_argument('--gpooling', type=str, default="max", choices=["sum", "mean", "max"],
                         help='Pooling type over entire graph: sum or mean')
     parser.add_argument('--npooling', type=str, default="max", choices=["sum", "mean", "max"],
                         help='Pooling type over neighboring nodes: sum, mean or max')

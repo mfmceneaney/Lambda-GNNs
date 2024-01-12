@@ -1827,7 +1827,12 @@ def optimization_study_dagnn(
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="logs/",verbose=True):
+def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="logs/",verbose=True,batch_size=batch_size,
+        drop_last=False,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=0
+        ):
 
     #TODO: Make these options...
     plt.rc('font', size=20) #controls default text size                                                                                                                     
@@ -1848,9 +1853,31 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
         model.models = [m.to(device) for m in model.models]
     except Exception as e:
         print(e)
-    test_bg    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop])#TODO: Figure out nicer way to use subset
-    test_bg    = test_bg.to(device)
-    prediction = model(test_bg)
+    # test_bg    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop])#TODO: Figure out nicer way to use subset
+    # test_bg    = test_bg.to(device)
+
+    # Create Dataloader
+    dl = GraphDataLoader(
+        dataset,
+        batch_size=batch_size,
+        drop_last=drop_last,
+        shuffle=shuffle,
+        pin_memory=pin_memory,
+        num_workers=num_workers,
+    )
+
+    # Loop dataloader and concatenate results
+    prediction = None
+    for x, y in dl:
+        x = x.to(device)
+        # y = y.to(device) #NOTE: Unnecessary for data
+        pred = model(x)
+        if prediction is None:
+            prediction = torch.tensor([pred])
+        else:
+            prediction = torch.concatenate((prediction,pred),axis=0)
+
+    # Get probabilities
     probs_Y    = torch.softmax(prediction, 1)
     argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
 

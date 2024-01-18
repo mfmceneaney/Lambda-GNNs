@@ -1873,9 +1873,9 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
         # y = y.to(device) #NOTE: Unnecessary for data
         pred = model(x)
         if prediction is None:
-            prediction = torch.tensor([pred])
+            prediction = pred.clone().detach()
         else:
-            prediction = torch.concatenate((prediction,pred),axis=0)
+            prediction = torch.concatenate((prediction,pred.clone().detach()),axis=0)
 
     # Get probabilities
     probs_Y    = torch.softmax(prediction, 1)

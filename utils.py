@@ -1851,6 +1851,8 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     model      = model.to(device)
     try:
         model.models = [m.to(device) for m in model.models]
+        for m in model.models:
+            m.eval()
     except Exception as e:
         print(e)
     # test_bg    = dgl.batch(test_dataset.dataset.graphs[test_dataset.indices.start:test_dataset.indices.stop])#TODO: Figure out nicer way to use subset

@@ -1024,7 +1024,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     test_Y = None
     for x, y in dl:
         x = x.to(device)
-        y = y.to(device)
+        # y = y.to(device) #NOTE: No Need to copy to device
         pred = model(x)
         if prediction is None:
             prediction = pred.clone().detach()

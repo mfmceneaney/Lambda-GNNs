@@ -1520,6 +1520,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.xlabel('output')
     plt.ylabel('counts')
     plt.yscale('log')
+    plt.legend(loc='best')
     f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+".pdf"))
 
     return (auc,test_acc) #NOTE: Needed for optimization_study() below.

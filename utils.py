@@ -974,7 +974,12 @@ def train_dagnn(
 
     return logs
     
-def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max_events=1e20 , log_dir="logs/",verbose=True):
+def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max_events=1e20, log_dir="logs/",verbose=True, batch_size=32,
+        drop_last=False,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=0
+        ):
     #TODO: Update args defaults for split and max_events!
 
     #TODO: Make these options...

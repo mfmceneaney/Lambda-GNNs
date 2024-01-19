@@ -1035,14 +1035,15 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
 
     probs_Y    = torch.softmax(prediction, 1)
     argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
-    test_acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
-    if verbose: print('Accuracy of predictions on the test set: {:4f}%'.format(
-        (test_Y == argmax_Y.float()).sum().item() / len(test_Y) * 100))
 
     # Copy arrays back to CPU
     test_Y   = test_Y.cpu()
     probs_Y  = probs_Y.cpu()
     argmax_Y = argmax_Y.cpu()
+
+    test_acc = (test_Y == argmax_Y.float()).sum().item() / len(test_Y)
+    if verbose: print('Accuracy of predictions on the test set: {:4f}%'.format(
+        (test_Y == argmax_Y.float()).sum().item() / len(test_Y) * 100))
 
     # Get separated mass distributions
     mass_sig_Y    = ma.array(test_dataset.dataset.labels[test_dataset.indices.start:test_dataset.indices.stop,1].clone().detach().float(),mask=~(argmax_Y == 1)) #if eval_loader is None else ma.array(test_dataset.labels[:,0].clone().detach().float().view(-1,1),mask=~(argmax_Y == 1)) 

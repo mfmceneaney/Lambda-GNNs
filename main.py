@@ -31,6 +31,8 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch GIN for graph classification')
     parser.add_argument('--dataset', type=str, default="gangelmc_10k_2021-07-22_noEtaOldChi2",
                         help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2)') #NOTE: Needs to be in ~/.dgl
+    parser.add_argument('--validation_dataset', type=str, default=None,
+                        help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2) note: Needs to be in ~/.dgl')
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--nworkers', type=int, default=0,
@@ -109,6 +111,12 @@ def main():
     train_dataloader, val_dataloader, nclasses, nfeatures, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
                                                     split=args.split, max_events=args.max_events, indices=args.indices,
                                                     num_workers=args.nworkers, batch_size=args.batch)
+
+    # Now treat case that validation_dataset is specified
+    if args.validation_dataset is not None:
+        _, val_dataloader, _, _, _ = load_graph_dataset(dataset=args.validation_dataset, prefix=args.prefix, 
+                                                split=args.split, max_events=args.max_events, indices=args.indices,
+                                                num_workers=args.nworkers, batch_size=batch_size)
 
     model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, nclasses, args.dropout, args.learn_eps, args.npooling,

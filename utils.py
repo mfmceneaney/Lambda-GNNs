@@ -1561,6 +1561,21 @@ def optimization_study(
                                                     split=args.split, max_events=args.max_events,
                                                     num_workers=args.nworkers, batch_size=batch_size)
 
+        # Now treat case that validation_dataset is specified
+        if args.validation_dataset is not None:
+            if len(args.indices)>3:
+                _, val_dataloader, eval_loader, _, _, _ = load_graph_dataset(dataset=args.validation_dataset, prefix=args.prefix, 
+                                                        split=args.split, max_events=args.max_events, indices=args.indices,
+                                                        num_workers=args.nworkers, batch_size=batch_size) 
+            elif len(args.indices)==3:
+                _, val_dataloader, _, _, _ = load_graph_dataset(dataset=args.validation_dataset, prefix=args.prefix, 
+                                                        split=args.split, max_events=args.max_events, indices=args.indices,
+                                                        num_workers=args.nworkers, batch_size=batch_size)
+            else:
+                _, val_dataloader, _, _, _ = load_graph_dataset(dataset=args.validation_dataset, prefix=args.prefix, 
+                                                        split=args.split, max_events=args.max_events,
+                                                        num_workers=args.nworkers, batch_size=batch_size)
+
         # Instantiate model, optimizer, scheduler, and loss
         model = GIN(nlayers,nmlp,nfeatures,hdim,nclasses,do,args.learn_eps,args.npooling,args.gpooling).to(device)
         optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -1732,6 +1747,21 @@ def optimization_study_dagnn(
             dom_train_loader, dom_val_loader, dom_nclasses, dom_nfeatures_node, dom_nfeatures_edge = load_graph_dataset(dataset=args.dom_dataset, prefix=args.dom_prefix, 
                                                     split=args.split, max_events=args.max_events,
                                                     num_workers=args.nworkers, batch_size=batch_size)
+
+        # Now treat case that validation_dataset is specified
+        if args.validation_dataset is not None:
+            if len(args.indices)>3:
+                _, val_dataloader, eval_loader, _, _, _ = load_graph_dataset(dataset=args.validation_dataset, prefix=args.prefix, 
+                                                        split=args.split, max_events=args.max_events, indices=args.indices,
+                                                        num_workers=args.nworkers, batch_size=batch_size) 
+            elif len(args.indices)==3:
+                _, val_dataloader, _, _, _ = load_graph_dataset(dataset=args.validation_dataset, prefix=args.prefix, 
+                                                        split=args.split, max_events=args.max_events, indices=args.indices,
+                                                        num_workers=args.nworkers, batch_size=batch_size)
+            else:
+                _, val_dataloader, _, _, _ = load_graph_dataset(dataset=args.validation_dataset, prefix=args.prefix, 
+                                                        split=args.split, max_events=args.max_events,
+                                                        num_workers=args.nworkers, batch_size=batch_size)
 
         # Check that # classes and data dimensionality at nodes and edges match between training and domain data
         if nclasses!=dom_nclasses or nfeatures_node!=dom_nfeatures_node or nfeatures_edge!=dom_nfeatures_edge:

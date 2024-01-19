@@ -27,6 +27,8 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch GIN for graph classification')
     parser.add_argument('--dataset', type=str, default="gangelmc_10k_2021-07-22_noEtaOldChi2",
                         help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2) note: Needs to be in ~/.dgl')
+    parser.add_argument('--validation_dataset', type=str, default=None,
+                        help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2) note: Needs to be in ~/.dgl')
     parser.add_argument('--device', type=str, default='cpu',
                         help='which device to use if any (default: \'cpu\')')
     parser.add_argument('--nworkers', type=int, default=0,

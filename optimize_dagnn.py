@@ -29,6 +29,8 @@ def main():
                         help='name of dataset (default: dataset)') #NOTE: Needs to be in ~/.dgl
     parser.add_argument('--dom_dataset', type=str, default="dataset",
                         help='name of domain dataset (default: dataset)') #NOTE: Needs to be in ~/.dgl
+    parser.add_argument('--validation_dataset', type=str, default=None,
+                        help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2) note: Needs to be in ~/.dgl')
     parser.add_argument('--device', type=str, default='cpu',
                         help='which device to use if any (default: \'cpu\')')
     parser.add_argument('--nworkers', type=int, default=0,

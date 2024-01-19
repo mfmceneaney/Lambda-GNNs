@@ -31,6 +31,8 @@ def main():
                         help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2)') #NOTE: Needs to be in ~/.dgl
     parser.add_argument('--dom_dataset', type=str, default="gangelmc_10k_2021-07-22_noEtaOldChi2",
                         help='name of domain dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2)') #NOTE: Needs to be in ~/.dgl
+    parser.add_argument('--validation_dataset', type=str, default=None,
+                        help='name of dataset (default: gangelmc_10k_2021-07-22_noEtaOldChi2) note: Needs to be in ~/.dgl')
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--nworkers', type=int, default=0,
@@ -133,6 +135,12 @@ def main():
     dom_train_loader, dom_val_loader, dom_nclasses, dom_nfeatures_node, dom_nfeatures_edge = load_graph_dataset(dataset=args.dom_dataset, prefix=args.dom_prefix, 
                                                     split=args.split, max_events=args.max_events, indices=args.dom_indices,
                                                     num_workers=args.nworkers, batch_size=args.batch)
+
+    # Now treat case that validation_dataset is specified
+    if args.validation_dataset is not None:
+        _, val_dataloader, _, _, _ = load_graph_dataset(dataset=args.validation_dataset, prefix=args.prefix, 
+                                                split=args.split, max_events=args.max_events, indices=args.indices,
+                                                num_workers=args.nworkers, batch_size=batch_size)
 
     print("DEBUGGING: CREATED DATALOADERS")
 

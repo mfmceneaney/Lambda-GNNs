@@ -1334,10 +1334,17 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
             x_multi_sig_false.append(mass_sig_false_from_target[~mass_sig_false_from_target.mask])
             x_multi_bg_true.append(mass_bg_true_from_target[~mass_bg_true_from_target.mask])
             x_multi_bg_false.append(mass_bg_false_from_target[~mass_bg_false_from_target.mask])
-            labels_sig_true.append(name_bank[my_pid__]) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
-            labels_sig_false.append(name_bank[my_pid__])
-            labels_bg_true.append(name_bank[my_pid__])
-            labels_bg_false.append(name_bank[my_pid__])
+            newname = "noname"
+            try:
+                newname = name_bank[my_pid__]
+            except KeyError as e:
+                print(e)
+                newname = my_pid__
+
+            labels_sig_true.append(newname) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
+            labels_sig_false.append(newname)
+            labels_bg_true.append(newname)
+            labels_bg_false.append(newname)
 
     # RESHUFFLE DATASETS TO CONTRIBUTIONS ARE PLOTTED SMALLEST TO LARGEST
     def reorder_(x,labels):

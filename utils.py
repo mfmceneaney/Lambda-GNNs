@@ -1339,7 +1339,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
                 newname = name_bank[my_pid__]
             except KeyError as e:
                 print(e)
-                newname = my_pid__
+                newname = str(my_pid__)
 
             labels_sig_true.append(newname) #NOTE: APPEND ABOVE ONLY IF COUNTS/TOTAL>1%
             labels_sig_false.append(newname)

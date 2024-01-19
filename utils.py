@@ -1037,7 +1037,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
 
     # Copy arrays back to CPU
-    test_Y   = test_Y.cpu()
+    test_Y   = test_Y.cpu().view(-1,1) #NOTE: THIS IS NECESSARY SO YOU GET SAME DIMENSION AS argmax_Y BELOW.
     probs_Y  = probs_Y.cpu()
     argmax_Y = argmax_Y.cpu()
 

@@ -1725,7 +1725,7 @@ def optimization_study_dagnn(
         # Setup data and model #NOTE: DO THIS HERE SINCE IT DEPENDS ON BATCH SIZE. #TODO: NOTE HOPEFULLY ALL BELOW WORKS...
         train_dataloader, val_dataloader, eval_loader, dom_train_loader, dom_val_loader, nclasses, nfeatures, nfeatures_edge = [None for i in range(8)]
         if len(args.indices)>3:
-            train_loader, val_loader, eval_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+            train_dataloader, val_dataloader, eval_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
                                                     split=args.split, max_events=args.max_events, indices=args.indices,
                                                     num_workers=args.nworkers, batch_size=batch_size)
 
@@ -1733,7 +1733,7 @@ def optimization_study_dagnn(
                                                     split=args.split, max_events=args.max_events, indices=args.indices[0:3],
                                                     num_workers=args.nworkers, batch_size=batch_size) 
         elif len(args.indices)==3:
-            train_loader, val_loader, eval_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+            train_dataloader, val_dataloader, eval_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
                                                     split=args.split, max_events=args.max_events, indices=args.indices,
                                                     num_workers=args.nworkers, batch_size=batch_size)
 
@@ -1741,7 +1741,7 @@ def optimization_study_dagnn(
                                                     split=args.split, max_events=args.max_events, indices=args.indices,
                                                     num_workers=args.nworkers, batch_size=batch_size)
         else:
-            train_loader, val_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+            train_dataloader, val_dataloader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
                                                     split=args.split, max_events=args.max_events,
                                                     num_workers=args.nworkers, batch_size=batch_size)
 
@@ -1825,7 +1825,7 @@ def optimization_study_dagnn(
                             discriminator,
                             device,
                             train_loader,
-                            val_loader,
+                            val_dataloader,
                             dom_train_loader,
                             dom_val_loader,
                             model_optimizer,

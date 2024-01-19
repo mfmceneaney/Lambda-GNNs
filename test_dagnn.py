@@ -128,7 +128,7 @@ def main():
     print("DEBUGGING: SEEDED DEVICE")
 
     # Setup data and model
-    train_loader, val_loader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
+    train_loader, val_dataloader, nclasses, nfeatures_node, nfeatures_edge = load_graph_dataset(dataset=args.dataset, prefix=args.prefix, 
                                                     split=args.split, max_events=args.max_events, indices=args.indices,
                                                     num_workers=args.nworkers, batch_size=args.batch)
 
@@ -209,7 +209,7 @@ def main():
         discriminator,
         device,
         train_loader,
-        val_loader,
+        val_dataloader,
         dom_train_loader,
         dom_val_loader,
         model_optimizer,

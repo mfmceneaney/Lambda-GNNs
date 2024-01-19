@@ -140,7 +140,7 @@ def main():
     if args.validation_dataset is not None:
         _, val_dataloader, _, _, _ = load_graph_dataset(dataset=args.validation_dataset, prefix=args.prefix, 
                                                 split=args.split, max_events=args.max_events, indices=args.indices,
-                                                num_workers=args.nworkers, batch_size=batch_size)
+                                                num_workers=args.nworkers, batch_size=args.batch)
 
     print("DEBUGGING: CREATED DATALOADERS")
 

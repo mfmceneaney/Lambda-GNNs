@@ -1028,10 +1028,10 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
         pred = model(x)
         if prediction is None:
             prediction = pred.clone().detach()
-            test_Y = y.clone().detach()
+            test_Y = y[:,0].clone().detach()
         else:
             prediction = torch.concatenate((prediction,pred.clone().detach()),axis=0)
-            test_Y = torch.concatenate((test_Y,y.clone().detach()),axis=0)
+            test_Y = torch.concatenate((test_Y,y[:,0].clone().detach()),axis=0)
 
     probs_Y    = torch.softmax(prediction, 1)
     argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)

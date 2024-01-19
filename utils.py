@@ -1488,6 +1488,7 @@ def evaluate(model,device,eval_loader=None,dataset="", prefix="", split=1.0, max
     plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
     plt.xlabel('output')
     plt.ylabel('counts')
+    plt.yscale('log')
     f.savefig(os.path.join(log_dir,model.name+"_test_decisions_"+datetime.datetime.now().strftime("%F")+".pdf"))
 
     return (auc,test_acc) #NOTE: Needed for optimization_study() below.
@@ -2008,6 +2009,7 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
     plt.xlabel('output')
     plt.ylabel('counts')
+    plt.yscale('log')
     f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+".pdf"))
 
 #------------------------- Classes -------------------------#

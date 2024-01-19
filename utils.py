@@ -46,7 +46,7 @@ from scipy.stats import crystalball
 import datetime, os, itertools
 
 # Local Imports
-from models import GIN, HeteroGIN, Classifier, Discriminator, MLP, Concatenate, MLP_SIGMOID
+from models import GIN, HeteroGIN, Classifier, Discriminator, MLP, Concatenate
 
 #------------------------- Functions -------------------------#
 
@@ -1779,8 +1779,8 @@ def optimization_study_dagnn(
         #NOTE: OLD BELOW 7/22/22
         # classifier = Classifier(input_size=hdim,num_classes=nclasses).to(device)
         # discriminator = Discriminator(input_size=hdim,num_classes=n_domains-1).to(device)
-        classifier = MLP_SIGMOID(nmlp_head, hdim, hdim_head, nclasses).to(device)
-        discriminator = MLP_SIGMOID(nmlp_head, hdim, hdim_head, n_domains).to(device)
+        classifier = MLP(nmlp_head, hdim, hdim_head, nclasses).to(device)
+        discriminator = MLP(nmlp_head, hdim, hdim_head, n_domains).to(device)
 
         # # Make models parallel if multiple gpus available
         # if device.type=='cuda' and device.index==None:

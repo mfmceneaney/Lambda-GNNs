@@ -21,7 +21,7 @@ import argparse, math, datetime, os, psutil, threading
 
 # Custom Imports
 from utils import load_graph_dataset, train_dagnn#, evaluate_dagnn
-from models import GIN, HeteroGIN, MLP, Classifier, Discriminator, MLP_SIGMOID
+from models import GIN, HeteroGIN, MLP, Classifier, Discriminator
 
 def main():
 
@@ -155,8 +155,8 @@ def main():
     model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, args.hdim, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)
-    classifier = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
-    discriminator = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, n_domains).to(device) #NOTE: UPDATED: REMOVED -1 for DEBUGGING #NOTE: The n_domains - 1 is important since we use BCELoss.
+    classifier = MLP(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
+    discriminator = MLP(args.nmlp_head, args.hdim, args.hdim_head, n_domains).to(device) #NOTE: UPDATED: REMOVED -1 for DEBUGGING #NOTE: The n_domains - 1 is important since we use BCELoss.
     #NOTE: ABOVE: NEED SIGMOID ACTIVATION AT END OF MLP's
     # classifier = Classifier(input_size=args.hdim,num_classes=nclasses).to(device)
     # discriminator = Discriminator(input_size=args.hdim,num_classes=n_domains-1).to(device)

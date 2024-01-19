@@ -19,7 +19,7 @@ import argparse, os
 
 # Custom Imports
 from utils import get_graph_dataset_info, load_graph_dataset, evaluate, evaluate_on_data
-from models import GIN, HeteroGIN, Classifier, Discriminator, MLP_SIGMOID
+from models import GIN, HeteroGIN, Classifier, Discriminator
 import models
 
 def main():
@@ -96,7 +96,7 @@ def main():
     _model = GIN(args.nlayers, args.nmlp, nfeatures,
             args.hdim, args.hdim, args.dropout, args.learn_eps, args.npooling,
             args.gpooling).to(device)
-    _classifier = MLP_SIGMOID(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
+    _classifier = MLP(args.nmlp_head, args.hdim, args.hdim_head, nclasses).to(device)
     print("DEBUGGING: LOADING: ",os.path.join(args.path,args.name+'_model_weights'))#DEBUGGING
     print("DEBUGGING: LOADING: ",os.path.join(args.path,args.name+'_classifier_weights'))#DEBUGGING
     _model.load_state_dict(torch.load(os.path.join(args.path,args.name+'_model_weights'),map_location=device))

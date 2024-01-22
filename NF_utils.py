@@ -409,6 +409,7 @@ train function
             *val_data: (Latent_data) validation data
             *num_epochs: (int) number of times to run over the whole training dataset
             *compact_num: (int) number of iterations to average over before producing compact histogram
+            *distorted: (bool) trains on distorted samples (by calling sample with the distorted param set true)
         -Returns:
             *compact_hist: (list of floats) list of loss values below a certain threshold, averaged, for readable plotting
             *full_loss_hist: (list of floats) list of all loss values for each batch

@@ -1824,7 +1824,7 @@ def optimization_study_dagnn(
                             classifier,
                             discriminator,
                             device,
-                            train_loader,
+                            train_dataloader,
                             val_dataloader,
                             dom_train_loader,
                             dom_val_loader,

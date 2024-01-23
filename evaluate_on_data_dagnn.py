@@ -19,7 +19,7 @@ import argparse, os
 
 # Custom Imports
 from utils import get_graph_dataset_info, load_graph_dataset, evaluate, evaluate_on_data
-from models import GIN, HeteroGIN, Classifier, Discriminator
+from models import GIN, HeteroGIN, Classifier, Discriminator, MLP
 import models
 
 def main():

@@ -158,7 +158,7 @@ def main():
 
     # Save plot
     figpath = os.path.join(args.log,'metrics_nn_cut_scan.pdf')
-    f.savefig(figpath)
+    fig.savefig(figpath)
 
 if __name__ == '__main__':
 

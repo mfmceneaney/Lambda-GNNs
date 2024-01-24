@@ -41,6 +41,7 @@ from optuna.samplers import TPESampler
 # Fitting imports
 import scipy.optimize as opt
 from scipy.stats import crystalball
+import scipy.integrate as integrate
 
 # Utility Imports
 import datetime, os, itertools
@@ -2001,45 +2002,32 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     plt.plot(x, sig(x, *optParams[0:5]), color='tab:purple')
     plt.plot(x, bg(x, *optParams[5:]), color='b')
     bghist = plt.hist(x, weights=y-bg(x, *optParams[5:]), bins=bins, range=low_high, histtype='step', alpha=0.5, color='b')
-    
-    # Get S and N before and after? #DEBUGGING: ADDED
-    import scipy.integrate as integrate
+
+    # Compute fit chi2/ndf value
+    r = np.divide(y - func(x, *optParams),np.sqrt([el if el>0 else 1 for el in func(x, *optParams)]))
+    chi2 = np.sum(np.square(r))
+    chi2ndf = chi2/(len(y)-len(optParams))
+
+    # Compute Signal and BG counts and FOM
     mu      = optParams[3]
     sigma   = optParams[4]
-    mmin    = mu - 2*sigma
-    mmax    = mu + 2*sigma
-
-    print("mmin = ",mmin)#DEBUGGING
-    print("mmax = ",mmax)#DEBUGGING
-
-    binwidth = (low_high[1]-low_high[0])/bins#KEEP!!!
-    print("binwidth = ",binwidth)#DEBUGGING
-
+    mmin    = 1.11 #mu - 2*sigma
+    mmax    = 1.13 #mu + 2*sigma
+    binwidth = (low_high[1]-low_high[0])/bins
     bin1 = int((mmin-low_high[0])/binwidth)
     bin2 = int((mmax-low_high[0])/binwidth)
-    print("bin1 = ",bin1)#DEBUGGING
-    print("bin2 = ",bin2)#DEBUGGING
+    integral_bghist = np.sum(bghist[0][bin1:bin2])
+    integral_tothist = np.sum(hdata[0][bin1:bin2])
+    fom = integral_bghist/np.sqrt(integral_tothist)
 
-    integral_bghist = sum(bghist[0][bin1:bin2])*binwidth
-    print("integral_bghist = ",integral_bghist)#DEBUGGING
-
-    print("optParams = ",optParams)#DEBUGGING
+    # Sanity check
+    if integral_tothist<=0:
+        integral_tothist=1
+        print("DEBUGGING: ERROR: integral_tothist=0 reassign to 1")#DEBUGGING
 
     resultN = integrate.quad(lambda x: func(x, *optParams),mmin,mmax)[0] / binwidth
     resultS = integrate.quad(lambda x: sig(x, *optParams[0:5]),mmin,mmax)[0] / binwidth
     resultB = integrate.quad(lambda x: bg(x, *optParams[5:]),mmin,mmax)[0] / binwidth
-
-    print("resultN = ",resultN)#DEBUGGING
-    print("resultS = ",resultS)#DEBUGGING
-    print("resultB = ",resultB)#DEBUGGING
-
-    # result_N = integrate.quad(func,mmin,mmax,args=optParams)
-    # result_S = integrate.quad(sig,mmin,mmax,args=optParams[0:5])
-    # result_B = integrate.quad(bg,mmin,mmax,args=optParams[5:])
-
-    # print("result_N = ",result_N)#DEBUGGING
-    # print("result_S = ",result_S)#DEBUGGING
-    # print("result_B = ",result_B)#DEBUGGING
 
     # Setup legend entries for fit info
     lg = "Fit Info\n-------------------------\n"
@@ -2075,6 +2063,8 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     plt.yscale('log')
     plt.legend(loc='best')
     f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+".pdf"))
+
+    return resultN, resultS, resultB, fom, chi2ndf
 
 #------------------------- Classes -------------------------#
 

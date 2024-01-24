@@ -2068,11 +2068,12 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
     low_high = (low,high)
     f = plt.figure()
     plt.clf()
-    plt.hist(probs_Y[:,1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist1')
-    plt.hist(probs_Y[:,0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='hist2')
+    plt.hist(probs_Y[:,1][argmax_Y==1].detach().numpy(), color='r', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='Signal')
+    plt.hist(probs_Y[:,1][argmax_Y==0].detach().numpy(), color='b', alpha=0.5, range=low_high, bins=bins, histtype='stepfilled', density=True, label='Background')
     plt.xlabel('output')
     plt.ylabel('counts')
     plt.yscale('log')
+    plt.legend(loc='best')
     f.savefig(os.path.join(log_dir,model.name+"_eval_decisions_"+datetime.datetime.now().strftime("%F")+".pdf"))
 
 #------------------------- Classes -------------------------#

@@ -1894,7 +1894,8 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
         drop_last=False,
         shuffle=False,
         pin_memory=True,
-        num_workers=0
+        num_workers=0,
+        roc_cut=None
         ):
 
     #TODO: Make these options...
@@ -1944,7 +1945,7 @@ def evaluate_on_data(model,device,dataset="", prefix="", split=1.0, log_dir="log
 
     # Get probabilities
     probs_Y    = torch.softmax(prediction, 1)
-    argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1)
+    argmax_Y   = torch.max(probs_Y, 1)[1].view(-1, 1) if roc_cut is None else torch.tensor([1 if el>roc_cut else 0 for el in probs_Y[:,1]],dtype=torch.long)
 
     # Copy arrays back to CPU
     probs_Y  = probs_Y.cpu()

@@ -129,11 +129,11 @@ def main():
     np.save(os.path.join(args.log,'metrics.npy'),metrics)
     np.save(os.path.join(args.log,'roc_cuts.npy'),roc_cuts)
 
-    plt.rc('font', size=15) #controls default text size                                                                                                                     
-    plt.rc('axes', titlesize=25) #fontsize of the title                                                                                                                     
-    plt.rc('axes', labelsize=25) #fontsize of the x and y labels                                                                                                            
-    plt.rc('xtick', labelsize=20) #fontsize of the x tick labels                                                                                                            
-    plt.rc('ytick', labelsize=20) #fontsize of the y tick labels                                                                                                            
+    plt.rc('font', size=15) #controls default text size
+    plt.rc('axes', titlesize=25) #fontsize of the title
+    plt.rc('axes', labelsize=25) #fontsize of the x and y labels
+    plt.rc('xtick', labelsize=20) #fontsize of the x tick labels
+    plt.rc('ytick', labelsize=20) #fontsize of the y tick labels
     plt.rc('legend', fontsize=15) #fontsize of the legend
 
     # Set data arrays
@@ -142,16 +142,20 @@ def main():
     y2 = np.divide(np.array(metrics)[:,1],np.array(metrics)[:,0]) #Purities=S/N
 
     # Make plot of metrics (FOM,purity) vs. NN output cut
+    ylims1 = (np.min(y1)-np.std(y1),np.max(y1)+np.std(y1))
+    ylims2 = (0.0,1.0)
     figsize = (16,10)
     fig, ax1 = plt.subplots(figsize=figsize)
     color = 'tab:blue'
     ax1.set_xlabel('NN output cut')
     ax1.set_ylabel("$FOM=S/\sqrt{N}$", color=color)
-    ax1.plot(x, y1, color=color)
+    ax1.set_ylim(*ylims1)
+    ax1.plot(x, y1, color=color, marker='o')
     ax1.tick_params(axis='y', labelcolor=color)
     ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
     color = 'tab:red'
-    ax2.set_ylabel('Purity=S/N', color=color)  # we already handled the x-label with ax1
+    ax2.set_ylabel('Purity=S/N', color=color, marker='o')  # we already handled the x-label with ax1
+    ax2.set_ylim(*ylims2)
     ax2.plot(x, y2, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
@@ -159,6 +163,7 @@ def main():
     # Save plot
     figpath = os.path.join(args.log,'metrics_nn_cut_scan.pdf')
     fig.savefig(figpath)
+    if args.verbose: plt.show()
 
 if __name__ == '__main__':
 

@@ -154,9 +154,9 @@ def main():
     ax1.tick_params(axis='y', labelcolor=color)
     ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
     color = 'tab:red'
-    ax2.set_ylabel('Purity=S/N', color=color, marker='o')  # we already handled the x-label with ax1
+    ax2.set_ylabel('Purity=S/N', color=color)  # we already handled the x-label with ax1
     ax2.set_ylim(*ylims2)
-    ax2.plot(x, y2, color=color)
+    ax2.plot(x, y2, color=color, marker='o')
     ax2.tick_params(axis='y', labelcolor=color)
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
 
